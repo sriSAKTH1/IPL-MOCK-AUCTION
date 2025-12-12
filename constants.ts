@@ -222,6 +222,19 @@ export const MOCK_PLAYERS: Player[] = [
     stats: { matches: 70, runs: 1600, strikeRate: 147.5 },
     imgUrl: 'https://documents.iplt20.com/ipl/IPLHeadshot2024/3764.png'
   },
+  {
+    id: 'p17',
+    name: 'Jake Fraser-McGurk',
+    country: 'Australia',
+    role: PlayerCategory.BATSMAN,
+    isOverseas: true,
+    isUncapped: false,
+    basePrice: 20000000,
+    set: AuctionSet.BATTERS_1,
+    status: 'UPCOMING',
+    stats: { matches: 9, runs: 330, strikeRate: 234.0 },
+    imgUrl: 'https://documents.iplt20.com/ipl/IPLHeadshot2024/15642.png'
+  },
 
   // ALL ROUNDERS SET 1
   {
@@ -250,6 +263,19 @@ export const MOCK_PLAYERS: Player[] = [
     stats: { matches: 210, runs: 2600, wickets: 150 },
     imgUrl: 'https://documents.iplt20.com/ipl/IPLHeadshot2024/9.png'
   },
+  {
+    id: 'p18',
+    name: 'Glenn Maxwell',
+    country: 'Australia',
+    role: PlayerCategory.ALL_ROUNDER,
+    isOverseas: true,
+    isUncapped: false,
+    basePrice: 20000000,
+    set: AuctionSet.ALLROUNDERS_1,
+    status: 'UPCOMING',
+    stats: { matches: 126, runs: 2719, wickets: 31 },
+    imgUrl: 'https://documents.iplt20.com/ipl/IPLHeadshot2024/282.png'
+  },
 
   // WICKET KEEPERS
   {
@@ -264,6 +290,49 @@ export const MOCK_PLAYERS: Player[] = [
     status: 'UPCOMING',
     stats: { matches: 98, runs: 2838, strikeRate: 147.9 },
     imgUrl: 'https://documents.iplt20.com/ipl/IPLHeadshot2024/2972.png'
+  },
+  {
+    id: 'p19',
+    name: 'Quinton de Kock',
+    country: 'South Africa',
+    role: PlayerCategory.WICKET_KEEPER,
+    isOverseas: true,
+    isUncapped: false,
+    basePrice: 20000000,
+    set: AuctionSet.WICKETKEEPERS_1,
+    status: 'UPCOMING',
+    stats: { matches: 96, runs: 2907, strikeRate: 134.2 },
+    imgUrl: 'https://documents.iplt20.com/ipl/IPLHeadshot2024/170.png'
+  },
+
+  // FAST BOWLERS
+  {
+    id: 'p20',
+    name: 'Kagiso Rabada',
+    country: 'South Africa',
+    role: PlayerCategory.BOWLER,
+    isOverseas: true,
+    isUncapped: false,
+    basePrice: 20000000,
+    set: AuctionSet.FAST_BOWLERS_1,
+    status: 'UPCOMING',
+    stats: { matches: 69, wickets: 106, economy: 8.42 },
+    imgUrl: 'https://documents.iplt20.com/ipl/IPLHeadshot2024/1664.png'
+  },
+
+  // SPINNERS
+  {
+    id: 'p21',
+    name: 'Yuzvendra Chahal',
+    country: 'India',
+    role: PlayerCategory.BOWLER,
+    isOverseas: false,
+    isUncapped: false,
+    basePrice: 20000000,
+    set: AuctionSet.SPINNERS_1,
+    status: 'UPCOMING',
+    stats: { matches: 145, wickets: 187, economy: 7.67 },
+    imgUrl: 'https://documents.iplt20.com/ipl/IPLHeadshot2024/10.png'
   },
 
   // UNCAPPED
@@ -292,6 +361,19 @@ export const MOCK_PLAYERS: Player[] = [
     status: 'UPCOMING',
     stats: { matches: 9, runs: 180, strikeRate: 175.0 },
     imgUrl: 'https://documents.iplt20.com/ipl/IPLHeadshot2024/15643.png'
+  },
+  {
+    id: 'p22',
+    name: 'Abhimanyu Easwaran',
+    country: 'India',
+    role: PlayerCategory.BATSMAN,
+    isOverseas: false,
+    isUncapped: true,
+    basePrice: 2000000,
+    set: AuctionSet.UNCAPPED,
+    status: 'UPCOMING',
+    stats: { matches: 28, runs: 900, strikeRate: 130.0 },
+    imgUrl: 'https://documents.iplt20.com/ipl/IPLHeadshot2024/1025.png'
   }
 ];
 

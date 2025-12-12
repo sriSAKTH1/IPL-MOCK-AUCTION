@@ -483,6 +483,18 @@ const AuctionRoom: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            {/* Always show Sets button even in Single Player if user wants to see list */}
+            {gameMode === 'SINGLE' && (
+                <div className="hidden lg:flex items-center gap-3 border-l border-white/10 pl-6 py-1">
+                     <button 
+                        onClick={() => setShowSetsModal(true)}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 hover:bg-slate-700 border border-slate-600/50 rounded-full transition-colors text-slate-300 text-xs font-bold tracking-wide"
+                    >
+                        <Layers size={14} /> <span>Sets</span>
+                    </button>
+                </div>
+            )}
         </div>
         
         {/* Horizontal Scrollable Teams Purse (Mobile/Tablet only or if Sidebar is hidden) */}
