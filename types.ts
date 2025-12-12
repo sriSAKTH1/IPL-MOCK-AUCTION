@@ -38,6 +38,7 @@ export interface Player {
   soldTo?: string; // Team ID
   imgUrl?: string;
   aiAnalysis?: string; // Fetched from Gemini
+  timestamp?: number; // Time of status change (Sold/Unsold)
 }
 
 export interface Team {
@@ -60,6 +61,12 @@ export interface Bid {
   timestamp: number;
 }
 
+export interface AuctionRules {
+  maxOverseas: number;
+  maxSquadSize: number;
+  minBidIncrement: number; // Minimum amount to add
+}
+
 export interface AuctionState {
   roomCode: string;
   teams: Team[];
@@ -74,4 +81,5 @@ export interface AuctionState {
   userTeamId?: string; // If role is TEAM
   isHost: boolean;
   gameMode: 'SINGLE' | 'MULTI';
+  rules: AuctionRules;
 }

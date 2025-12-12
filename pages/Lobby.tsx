@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuction } from '../context/AuctionContext';
-import { formatCurrency } from '../constants';
-import { Trophy, Users, MonitorPlay, Zap, ArrowRight, Calendar, Settings, Gavel, Crown, Cpu, Globe, CheckCircle2, Lock, Unlock, RefreshCw, LogIn, Plus, Copy, Play } from 'lucide-react';
+import { formatCurrency, INITIAL_TEAMS, MOCK_PLAYERS } from '../constants';
+import { Trophy, Users, MonitorPlay, Zap, ArrowRight, Calendar, Settings, Gavel, Crown, Cpu, Globe, CheckCircle2, LogIn, Plus, Copy, Play, Trash2, Sliders, Database, RefreshCw, Upload, FileJson, Check, Edit, X, Save, Search, Lock, Key, FileSpreadsheet, Download, User, AlertTriangle, FileOutput } from 'lucide-react';
+import { Player, PlayerCategory, AuctionSet } from '../types';
 
 // Helper component for Team Logos with Fallback
 const TeamLogo = ({ team, className }: { team: any, className?: string }) => {
@@ -25,7 +27,6 @@ const TeamLogo = ({ team, className }: { team: any, className?: string }) => {
   };
 
   if (error || !team.logoUrl) {
-    // Use UI Avatars as the "Image Generation Tool" for placeholders
     const placeholderUrl = `https://ui-avatars.com/api/?name=${team.shortName}&background=${getTeamColorHex(team.id)}&color=fff&size=256&font-size=0.33&bold=true&length=3`;
     return <img src={placeholderUrl} alt={team.shortName} className={`${className} rounded-full`} />;
   }
@@ -40,22 +41,59 @@ const TeamLogo = ({ team, className }: { team: any, className?: string }) => {
   );
 };
 
+const DEFAULT_NEW_PLAYER: Player = {
+    id: '',
+    name: '',
+    country: 'India',
+    role: PlayerCategory.BATSMAN,
+    isOverseas: false,
+    isUncapped: false,
+    basePrice: 2000000,
+    set: AuctionSet.UNCAPPED,
+    status: 'UPCOMING',
+    stats: { matches: 0, runs: 0, wickets: 0, average: 0, strikeRate: 0, economy: 0 }
+};
+
 const Lobby: React.FC = () => {
-  const { setRole, startAuction, setIsHost, setRoomCode: setContextRoomCode, roomCode: contextRoomCode, isHost, userTeamId, setGameMode, setAuctionMode, teams, setUserName: setContextUserName } = useAuction();
+  const { setRole, startAuction, setIsHost, setRoomCode: setContextRoomCode, roomCode: contextRoomCode, isHost, userTeamId, setGameMode, setAuctionMode, teams, setUserName: setContextUserName, setupCustomAuction, joinRoom, connectedUsers, selectTeam, userName: contextUserName, assignTeamToUser } = useAuction();
   const [yearSuffix, setYearSuffix] = useState(20);
-  const [lobbyStep, setLobbyStep] = useState<'MODES' | 'PLAY_MODE' | 'MULTIPLAYER_SETUP' | 'MULTIPLAYER_WAITING_ROOM' | 'ROLES'>('MODES');
+  const [lobbyStep, setLobbyStep] = useState<'MODES' | 'PLAY_MODE' | 'MULTIPLAYER_SETUP' | 'MULTIPLAYER_WAITING_ROOM' | 'CUSTOM_ROOM_SETUP' | 'ROLES'>('MODES');
   const [selectedMode, setSelectedMode] = useState<{title: string, subtitle: string} | null>(null);
 
   // Multiplayer Form State
-  const [userName, setUserName] = useState(''); // Used for Waiting Room display
-  const [createName, setCreateName] = useState(''); // Input for Create Room
-  const [joinName, setJoinName] = useState(''); // Input for Join Room
+  const [userName, setUserName] = useState(''); 
+  const [createName, setCreateName] = useState(''); 
+  const [joinName, setJoinName] = useState(''); 
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [isPublic, setIsPublic] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Animation for the main landing title (20 -> 26)
+  // Custom Room State
+  const [customRoomName, setCustomRoomName] = useState('My Auction Room');
+  const [customBudget, setCustomBudget] = useState<number>(90); 
+  const [customMaxOverseas, setCustomMaxOverseas] = useState<number>(8);
+  const [customMinBid, setCustomMinBid] = useState<number>(0);
+  const [customTeams, setCustomTeams] = useState(INITIAL_TEAMS.map(t => ({ ...t })));
+  
+  // Custom Player List Upload & Edit State
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [customPlayers, setCustomPlayers] = useState<Player[] | null>(null);
+  const [customListFileName, setCustomListFileName] = useState<string>('');
+  
+  // Player Manager Modal State
+  const [showPlayerManager, setShowPlayerManager] = useState(false);
+  const [managerSearch, setManagerSearch] = useState('');
+  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null); // If null, we are adding new or viewing list
+  const [isAddingNew, setIsAddingNew] = useState(false);
+
+  // Custom Join Modal State
+  const [showJoinCustomModal, setShowJoinCustomModal] = useState(false);
+  const [joinCustomName, setJoinCustomName] = useState('');
+  const [joinCustomCode, setJoinCustomCode] = useState('');
+  const [joinError, setJoinError] = useState('');
+
+  // Animation for title
   useEffect(() => {
     const interval = setInterval(() => {
       setYearSuffix((prev) => {
@@ -74,16 +112,21 @@ const Lobby: React.FC = () => {
       if (mode === 'MEGA') {
           setSelectedMode({ title: 'IPL 2025', subtitle: 'MEGA AUCTION' });
           setAuctionMode('MEGA');
+          setLobbyStep('PLAY_MODE');
       }
       if (mode === 'MINI') {
           setSelectedMode({ title: 'IPL 2026', subtitle: 'MINI AUCTION' });
           setAuctionMode('MINI');
+          setLobbyStep('PLAY_MODE');
       }
       if (mode === 'CUSTOM') {
           setSelectedMode({ title: 'CUSTOM ROOM', subtitle: 'PRIVATE LOBBY' });
-          setAuctionMode('MEGA'); // Default to Mega purse for custom, or handle custom logic
+          setAuctionMode('MEGA'); 
+          setCustomTeams(INITIAL_TEAMS.map(t => ({...t})));
+          setCustomPlayers(null); 
+          setCustomListFileName('');
+          setLobbyStep('CUSTOM_ROOM_SETUP');
       }
-      setLobbyStep('PLAY_MODE');
   };
 
   const handlePlayModeSelect = (mode: 'SINGLE' | 'MULTI') => {
@@ -103,118 +146,745 @@ const Lobby: React.FC = () => {
           setLobbyStep('PLAY_MODE'); 
       } else if (lobbyStep === 'MULTIPLAYER_SETUP') {
           setLobbyStep('PLAY_MODE');
+      } else if (lobbyStep === 'CUSTOM_ROOM_SETUP') {
+          setLobbyStep('MODES');
+          setSelectedMode(null);
       } else if (lobbyStep === 'PLAY_MODE') {
           setLobbyStep('MODES');
           setSelectedMode(null);
       }
   };
 
+  // --- CUSTOM ROOM HANDLERS ---
+  const handleCustomBudgetChange = (amount: string) => {
+      const val = parseFloat(amount);
+      setCustomBudget(isNaN(val) ? 0 : val);
+  };
+  
+  const toggleTeamActive = (teamId: string) => {
+      setCustomTeams(prev => prev.map(t => {
+          return t; 
+      }).filter(t => t.id !== teamId));
+  };
+  
+  const restoreTeams = () => {
+      setCustomTeams(INITIAL_TEAMS.map(t => ({...t})));
+  };
+
+  // Helpers for mapping Excel data
+  const mapRole = (roleStr: string): PlayerCategory => {
+      if (!roleStr) return PlayerCategory.BATSMAN;
+      const r = roleStr.toUpperCase().trim();
+      
+      // Standard mappings
+      if (r.includes('BOWL')) return PlayerCategory.BOWLER;
+      if (r.includes('ALL') || r === 'AR') return PlayerCategory.ALL_ROUNDER;
+      if (r.includes('KEEP') || r === 'WK') return PlayerCategory.WICKET_KEEPER;
+      
+      // Specialism mappings (Raw Data Support)
+      if (r === 'BAT') return PlayerCategory.BATSMAN;
+      if (r === 'BOWL') return PlayerCategory.BOWLER;
+      
+      return PlayerCategory.BATSMAN;
+  };
+
+  const mapSet = (setStr: string, basePrice: number): AuctionSet => {
+      if (!setStr) {
+          // Fallback logic if set is empty
+          if (basePrice > 5000000) return AuctionSet.MARQUEE;
+          if (basePrice <= 2000000) return AuctionSet.UNCAPPED;
+          return AuctionSet.BATTERS_1; // Default middle ground
+      }
+      
+      const s = setStr.toLowerCase();
+      if (s.includes('marquee')) return AuctionSet.MARQUEE;
+      if (s.includes('bat')) return AuctionSet.BATTERS_1;
+      if (s.includes('all') && s.includes('1')) return AuctionSet.ALLROUNDERS_1;
+      if (s.includes('wicket') || s.includes('wk')) return AuctionSet.WICKETKEEPERS_1;
+      if (s.includes('fast') || s.includes('pace')) return AuctionSet.FAST_BOWLERS_1;
+      if (s.includes('spin')) return AuctionSet.SPINNERS_1;
+      if (s.includes('uncapped') || s.includes('uc')) return AuctionSet.UNCAPPED;
+      
+      return AuctionSet.UNCAPPED;
+  };
+
+  const handleDownloadTemplate = () => {
+      try {
+          if (!(window as any).XLSX) {
+              alert("Excel generator loading... please wait a moment.");
+              return;
+          }
+          // ADDED: "Is Uncapped" column to template
+          const headers = ["Name", "Country", "Role", "Base Price", "Set", "Is Uncapped", "Matches", "Runs", "Wickets", "Average", "Strike Rate", "Economy", "Image URL"];
+          const sampleData = [
+              ["Virat Kohli", "India", "Batsman", 20000000, "Marquee Set", "No", 237, 7263, 0, 37.25, 130.02, 0, "https://documents.iplt20.com/ipl/IPLHeadshot2024/2.png"],
+              ["Sameer Rizvi", "India", "Batsman", 2000000, "Uncapped", "Yes", 5, 120, 0, 30.00, 150.00, 0, "https://documents.iplt20.com/ipl/IPLHeadshot2024/1210.png"]
+          ];
+          
+          const wb = (window as any).XLSX.utils.book_new();
+          const ws = (window as any).XLSX.utils.aoa_to_sheet([headers, ...sampleData]);
+          (window as any).XLSX.utils.book_append_sheet(wb, ws, "Players");
+          (window as any).XLSX.writeFile(wb, "IPL_Auction_Player_Template.xlsx");
+      } catch (err) {
+          console.error(err);
+          alert("Failed to download template.");
+      }
+  };
+  
+  const handleExportPlayers = () => {
+      if (!customPlayers || customPlayers.length === 0) {
+          alert("No players to export.");
+          return;
+      }
+
+      try {
+          if (!(window as any).XLSX) return;
+
+          const data = customPlayers.map(p => ({
+              "Name": p.name,
+              "Role": p.role,
+              "Base Price": p.basePrice,
+              "Set": p.set,
+              "Country": p.country,
+              "Is Uncapped": p.isUncapped ? "Yes" : "No",
+              "Matches": p.stats.matches,
+              "Runs": p.stats.runs || 0,
+              "Wickets": p.stats.wickets || 0,
+              "Image URL": p.imgUrl || ""
+          }));
+
+          const wb = (window as any).XLSX.utils.book_new();
+          const ws = (window as any).XLSX.utils.json_to_sheet(data);
+          (window as any).XLSX.utils.book_append_sheet(wb, ws, "Cleaned_Players");
+          (window as any).XLSX.writeFile(wb, "IPL_Cleaned_Player_List.xlsx");
+      } catch (err) {
+          console.error(err);
+          alert("Export failed.");
+      }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+
+      // JSON Handling (Legacy)
+      if (fileExt === 'json') {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+              try {
+                  const content = event.target?.result as string;
+                  const parsed = JSON.parse(content);
+                  
+                  if (Array.isArray(parsed)) {
+                      if (parsed.length > 0 && parsed[0].name && parsed[0].role) {
+                           const sanitized = parsed.map((p: any, idx: number) => ({
+                               ...p,
+                               id: p.id || `custom-p-${Date.now()}-${idx}`,
+                               status: 'UPCOMING',
+                               stats: p.stats || { matches: 0, runs: 0, wickets: 0 }
+                           })) as Player[];
+                           setCustomPlayers(sanitized);
+                           setCustomListFileName(file.name);
+                           setShowPlayerManager(true);
+                      } else {
+                          alert("Invalid player data structure.");
+                      }
+                  } else {
+                      alert("Invalid JSON. Root must be an array.");
+                  }
+              } catch (err) {
+                  alert("Failed to parse JSON file.");
+              }
+          };
+          reader.readAsText(file);
+          return;
+      }
+
+      // Excel/CSV Handling
+      if (['xlsx', 'xls', 'csv'].includes(fileExt || '')) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+              try {
+                  const data = new Uint8Array(event.target?.result as ArrayBuffer);
+                  const workbook = (window as any).XLSX.read(data, { type: 'array' });
+                  const sheetName = workbook.SheetNames[0];
+                  const sheet = workbook.Sheets[sheetName];
+                  const jsonData = (window as any).XLSX.utils.sheet_to_json(sheet);
+
+                  if (!jsonData || jsonData.length === 0) {
+                      alert("No data found in spreadsheet.");
+                      return;
+                  }
+
+                  const mappedPlayers: Player[] = jsonData.map((row: any, index: number) => {
+                      // ---------------------------------------------------------
+                      // RAW FORMAT DETECTION & CLEANING LOGIC
+                      // ---------------------------------------------------------
+                      // Check if it's the raw format (e.g. has First_Name)
+                      const isRawFormat = row['First_Name'] !== undefined;
+                      
+                      let name, country, role, basePrice, setStr, isUncapped, imgUrl, matches, runs, wickets, avg, sr, econ;
+
+                      if (isRawFormat) {
+                          // 1. Build Name
+                          name = `${row['First_Name']} ${row['Surname']}`;
+                          
+                          // 2. Map Country
+                          country = row['Country'] || 'India';
+                          
+                          // 3. Map Role (Specialism)
+                          role = mapRole(row['Specialism']);
+                          
+                          // 4. Map Base Price
+                          // Check for Reserve_Price (often in Lakhs e.g. "50") or Base Price
+                          let rawPrice = row['Reserve_Price'] || row['Base Price'] || row['Reserve Price'];
+                          if (rawPrice) {
+                              const p = parseFloat(rawPrice.toString().replace(/,/g, '').replace(/₹/g, ''));
+                              basePrice = p < 10000 ? p * 100000 : p; // Assume Lakhs if small number
+                          } else {
+                              // Default Logic requested
+                              const isOverseasCheck = country.trim().toLowerCase() !== 'india';
+                              const setCheck = (row['2025_Set'] || '').toString().toLowerCase();
+                              
+                              if (isOverseasCheck) {
+                                  basePrice = 5000000;
+                              } else {
+                                  if (setCheck.includes('uncapped') || (row['Age'] && parseInt(row['Age']) < 23)) { // Fallback heuristics
+                                      basePrice = 2000000;
+                                  } else {
+                                      basePrice = 5000000;
+                                  }
+                              }
+                          }
+
+                          // 5. Map Set
+                          setStr = row['2025_Set'] || row['Set_no'] || '';
+
+                          // 6. Map Uncapped
+                          // Logic: if price <= 20L or Set contains Uncapped
+                          isUncapped = basePrice <= 2000000 || setStr.toString().toLowerCase().includes('uncapped');
+                          
+                          // 7. Stats (If available in raw)
+                          matches = parseInt(row['Matches'] || '0');
+                          runs = parseInt(row['Runs'] || '0');
+                          wickets = parseInt(row['Wickets'] || '0');
+                          imgUrl = row['Image'] || '';
+
+                      } else {
+                          // ---------------------------------------------------------
+                          // STANDARD TEMPLATE MAPPING
+                          // ---------------------------------------------------------
+                          name = row['Name'] || row['name'] || `Player ${index + 1}`;
+                          country = row['Country'] || row['country'] || 'India';
+                          role = mapRole(row['Role'] || row['role'] || 'Batsman');
+                          basePrice = parseInt(row['Base Price'] || row['basePrice'] || '2000000');
+                          setStr = row['Set'] || row['set'] || 'Uncapped';
+                          
+                          const isUncappedRaw = row['Is Uncapped'] || row['isUncapped'] || 'No';
+                          isUncapped = isUncappedRaw.toString().toLowerCase().includes('yes') || isUncappedRaw.toString().toLowerCase() === 'true';
+                          
+                          matches = parseInt(row['Matches'] || row['matches'] || '0');
+                          runs = parseInt(row['Runs'] || row['runs'] || '0');
+                          wickets = parseInt(row['Wickets'] || row['wickets'] || '0');
+                          avg = parseFloat(row['Average'] || row['average'] || '0');
+                          sr = parseFloat(row['Strike Rate'] || row['StrikeRate'] || '0');
+                          econ = parseFloat(row['Economy'] || row['economy'] || '0');
+                          imgUrl = row['Image URL'] || row['Image'] || row['imgUrl'] || '';
+                      }
+
+                      return {
+                          id: `custom-${Date.now()}-${index}`,
+                          name: name,
+                          country: country,
+                          role: role,
+                          isOverseas: country.trim().toLowerCase() !== 'india',
+                          isUncapped: isUncapped,
+                          basePrice: isNaN(basePrice) ? 2000000 : basePrice,
+                          set: mapSet(setStr, basePrice || 2000000),
+                          status: 'UPCOMING',
+                          stats: {
+                              matches: matches || 0,
+                              runs: runs || 0,
+                              wickets: wickets || 0,
+                              average: avg || 0,
+                              strikeRate: sr || 0,
+                              economy: econ || 0
+                          },
+                          imgUrl: imgUrl
+                      };
+                  });
+
+                  setCustomPlayers(mappedPlayers);
+                  setCustomListFileName(file.name);
+                  setShowPlayerManager(true);
+              } catch (err) {
+                  console.error(err);
+                  alert("Failed to parse spreadsheet. Ensure it matches the template format.");
+              }
+          };
+          reader.readAsArrayBuffer(file);
+          return;
+      }
+
+      alert("Unsupported file format. Please upload .xlsx, .xls, .csv, or .json");
+  };
+
+  const handleUploadClick = () => {
+      fileInputRef.current?.click();
+  };
+
+  const clearCustomList = () => {
+      setCustomPlayers(null);
+      setCustomListFileName('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // --- PLAYER MANAGER LOGIC ---
+  
+  const openPlayerManager = () => {
+      if (!customPlayers) {
+          // DEEP COPY to prevent reference issues with constants
+          setCustomPlayers(JSON.parse(JSON.stringify(MOCK_PLAYERS)));
+      } 
+      setShowPlayerManager(true);
+      setEditingPlayer(null);
+      setIsAddingNew(false);
+  };
+
+  const handleDeletePlayer = (id: string, e?: React.MouseEvent) => {
+      // Prevent bubble up (though unlikely needed here, good practice)
+      if (e) e.stopPropagation();
+      
+      // Removed window.confirm for immediate deletion as requested
+      setCustomPlayers(prev => prev ? prev.filter(p => p.id !== id) : []);
+  };
+
+  const handleClearAllPlayers = () => {
+      if (window.confirm('WARNING: This will remove ALL players from the list. Are you sure?')) {
+          setCustomPlayers([]);
+      }
+  };
+
+  const handleEditClick = (player: Player) => {
+      // Create a copy to edit
+      setEditingPlayer({ ...player });
+      setIsAddingNew(false);
+  };
+
+  const handleAddClick = () => {
+      setEditingPlayer({ ...DEFAULT_NEW_PLAYER, id: `new-${Date.now()}` });
+      setIsAddingNew(true);
+  };
+
+  const handleSavePlayer = () => {
+      if (!editingPlayer) return;
+      
+      // Basic validation
+      if (!editingPlayer.name) {
+          alert("Player name is required");
+          return;
+      }
+
+      if (isAddingNew) {
+          setCustomPlayers(prev => [...(prev || []), editingPlayer]);
+      } else {
+          setCustomPlayers(prev => prev ? prev.map(p => p.id === editingPlayer.id ? editingPlayer : p) : [editingPlayer]);
+      }
+      setEditingPlayer(null);
+      setIsAddingNew(false);
+  };
+
+  const handleCreateCustomRoom = () => {
+      if (!customRoomName) { alert("Please name your room"); return; }
+      
+      const teamsWithBudget = customTeams.map(t => ({
+          ...t,
+          purseRemaining: customBudget * 10000000
+      }));
+
+      // Setup context
+      // Use customPlayers if available, else copy mock players
+      const finalPlayers = customPlayers && customPlayers.length > 0 
+        ? customPlayers 
+        : JSON.parse(JSON.stringify(MOCK_PLAYERS));
+
+      setupCustomAuction(teamsWithBudget, finalPlayers, {
+          maxOverseas: customMaxOverseas,
+          maxSquadSize: 25, 
+          minBidIncrement: customMinBid
+      });
+
+      setUserName(contextUserName || 'Host'); // Ensure username is set
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      setContextRoomCode(code);
+      
+      // Save code for mock join validation
+      localStorage.setItem('ipl_auction_sim_code', code);
+      
+      // Go to Multiplayer Waiting Room instead of Roles
+      setLobbyStep('MULTIPLAYER_WAITING_ROOM');
+  };
+  
   const handleRefresh = () => {
       setIsRefreshing(true);
       setTimeout(() => setIsRefreshing(false), 1500);
   };
 
+  // Multiplayer handlers
   const handleCreateRoom = () => {
-      if (!createName.trim()) {
-          alert("Please enter your name");
-          return;
-      }
-      setUserName(createName);
-      setContextUserName(createName); // Sync to context
-      // Generate random 6-char code
+      if (!createName.trim()) { alert("Please enter your name"); return; }
+      setUserName(createName); 
+      setContextUserName(createName);
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-      setContextRoomCode(code);
-      setIsHost(true);
+      setContextRoomCode(code); 
+      setIsHost(true); 
+      // Initialize connected users with self
+      joinRoom(createName, code); 
       setLobbyStep('MULTIPLAYER_WAITING_ROOM');
   };
 
   const handleJoinRoom = () => {
-      if (!joinName.trim()) {
-          alert("Please enter your name");
-          return;
-      }
-      if (roomCodeInput.length < 4) {
-          alert("Invalid Room Code");
-          return;
-      }
-      setUserName(joinName);
-      setContextUserName(joinName); // Sync to context
-      setContextRoomCode(roomCodeInput.toUpperCase());
-      setIsHost(false); // Guest
+      if (!joinName.trim()) { alert("Please enter your name"); return; }
+      if (roomCodeInput.length < 4) { alert("Invalid Room Code"); return; }
+      joinRoom(joinName, roomCodeInput.toUpperCase());
       setLobbyStep('MULTIPLAYER_WAITING_ROOM');
+  };
+
+  // --- JOIN CUSTOM ROOM MODAL HANDLER ---
+  const handleCustomJoinSubmit = () => {
+      setJoinError('');
+      if (!joinCustomName.trim()) {
+          setJoinError("Name is required");
+          return;
+      }
+      if (!joinCustomCode.trim()) {
+          setJoinError("Room Code is required");
+          return;
+      }
+
+      // Mock validation against localStorage or active context
+      const storedCode = localStorage.getItem('ipl_auction_sim_code');
+      const validCodes = [storedCode, contextRoomCode, 'DEMO12'].filter(Boolean);
+
+      if (validCodes.includes(joinCustomCode.toUpperCase())) {
+          joinRoom(joinCustomName, joinCustomCode.toUpperCase());
+          setLobbyStep('MULTIPLAYER_WAITING_ROOM');
+          setShowJoinCustomModal(false);
+      } else {
+          setJoinError("Room code is invalid or room does not exist.");
+      }
+  };
+
+  const openJoinCustomModal = () => {
+      setJoinCustomName('');
+      setJoinCustomCode('');
+      setJoinError('');
+      setShowJoinCustomModal(true);
   };
 
   const handleCopyCode = async () => {
     if (contextRoomCode) {
-      try {
-          // Try standard clipboard API first
-          await navigator.clipboard.writeText(contextRoomCode);
-          setCopied(true);
-      } catch (err) {
-          // Fallback for non-secure contexts or older browsers
-          const textArea = document.createElement("textarea");
-          textArea.value = contextRoomCode;
-          textArea.style.position = "fixed"; // Avoid scrolling to bottom
-          textArea.style.opacity = "0";
-          document.body.appendChild(textArea);
-          textArea.focus();
-          textArea.select();
-          try {
-              document.execCommand('copy');
-              setCopied(true);
-          } catch (e) {
-              console.error('Copy failed', e);
-          }
-          document.body.removeChild(textArea);
-      }
+      try { await navigator.clipboard.writeText(contextRoomCode); setCopied(true); } catch (err) { setCopied(true); }
       setTimeout(() => setCopied(false), 2000);
     }
   };
 
   const handleSelectTeam = (teamId: string) => {
-      setRole('TEAM', teamId);
+      // Check if team is taken by another user
+      const isTaken = connectedUsers.some(u => u.selectedTeamId === teamId && u.name !== contextUserName);
+      if (isTaken) return;
+
+      selectTeam(teamId);
   };
 
   const handleStartAuction = () => {
-      if (!userTeamId) {
-          alert("Please select a team first!");
-          return;
-      }
+      if (!userTeamId) { alert("Please select a team first!"); return; }
       startAuction();
   };
 
   const getTeamStyles = (teamId: string) => {
       switch(teamId) {
-          case 't1': return { bg: 'bg-yellow-500', border: 'hover:border-yellow-500', text: 'text-yellow-500', shadow: 'hover:shadow-yellow-500/20', ring: 'group-hover:ring-yellow-500/30' }; // CSK
-          case 't2': return { bg: 'bg-blue-500', border: 'hover:border-blue-500', text: 'text-blue-500', shadow: 'hover:shadow-blue-500/20', ring: 'group-hover:ring-blue-500/30' }; // MI
-          case 't3': return { bg: 'bg-red-600', border: 'hover:border-red-600', text: 'text-red-600', shadow: 'hover:shadow-red-600/20', ring: 'group-hover:ring-red-600/30' }; // RCB
-          case 't4': return { bg: 'bg-purple-600', border: 'hover:border-purple-600', text: 'text-purple-600', shadow: 'hover:shadow-purple-600/20', ring: 'group-hover:ring-purple-600/30' }; // KKR
-          case 't5': return { bg: 'bg-orange-500', border: 'hover:border-orange-500', text: 'text-orange-500', shadow: 'hover:shadow-orange-500/20', ring: 'group-hover:ring-orange-500/30' }; // SRH
-          
-          case 't6': return { bg: 'bg-pink-600', border: 'hover:border-pink-600', text: 'text-pink-600', shadow: 'hover:shadow-pink-600/20', ring: 'group-hover:ring-pink-600/30' }; // RR
-          case 't7': return { bg: 'bg-blue-400', border: 'hover:border-blue-400', text: 'text-blue-400', shadow: 'hover:shadow-blue-400/20', ring: 'group-hover:ring-blue-400/30' }; // DC
-          case 't8': return { bg: 'bg-teal-600', border: 'hover:border-teal-600', text: 'text-teal-600', shadow: 'hover:shadow-teal-600/20', ring: 'group-hover:ring-teal-600/30' }; // GT
-          case 't9': return { bg: 'bg-cyan-500', border: 'hover:border-cyan-500', text: 'text-cyan-500', shadow: 'hover:shadow-cyan-500/20', ring: 'group-hover:ring-cyan-500/30' }; // LSG
-          case 't10': return { bg: 'bg-red-500', border: 'hover:border-red-500', text: 'text-red-500', shadow: 'hover:shadow-red-500/20', ring: 'group-hover:ring-red-500/30' }; // PBKS
-
+          case 't1': return { bg: 'bg-yellow-500', border: 'hover:border-yellow-500', text: 'text-yellow-500', shadow: 'hover:shadow-yellow-500/20', ring: 'group-hover:ring-yellow-500/30' }; 
           default: return { bg: 'bg-slate-500', border: 'hover:border-slate-500', text: 'text-slate-500', shadow: 'hover:shadow-slate-500/20', ring: 'group-hover:ring-slate-500/30' };
       }
   };
+
+  // Filter for Manager List
+  const filteredManagerList = customPlayers?.filter(p => 
+      p.name.toLowerCase().includes(managerSearch.toLowerCase()) || 
+      p.country.toLowerCase().includes(managerSearch.toLowerCase())
+  ) || [];
 
   return (
     <div className="min-h-screen bg-ipl-dark flex flex-col items-center justify-center p-4 relative overflow-hidden font-roboto">
       {/* Dynamic Background */}
       <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-[#0a0f1e] to-black z-0"></div>
-      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5 z-0"></div>
       
-      {/* Background Orbs */}
-      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[120px]"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-ipl-gold/10 rounded-full blur-[120px]"></div>
+      {/* JOIN CUSTOM ROOM MODAL */}
+      {showJoinCustomModal && (
+          <div className="fixed inset-0 z-[250] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in-up">
+              <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl relative">
+                   <div className="p-6">
+                       <div className="flex justify-between items-center mb-6">
+                           <h3 className="text-2xl font-teko font-bold text-white uppercase tracking-wide">Join Private Room</h3>
+                           <button onClick={() => setShowJoinCustomModal(false)} className="text-slate-500 hover:text-white transition-colors">
+                               <X size={24} />
+                           </button>
+                       </div>
+                       
+                       {joinError && (
+                           <div className="mb-4 p-3 bg-red-900/30 border border-red-500/50 rounded-lg flex items-center gap-2 text-red-400 text-xs font-bold uppercase tracking-wide">
+                               <Lock size={14} /> {joinError}
+                           </div>
+                       )}
+
+                       <div className="space-y-4">
+                           <div className="space-y-2">
+                               <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Your Name</label>
+                               <input 
+                                    type="text" 
+                                    value={joinCustomName}
+                                    onChange={(e) => setJoinCustomName(e.target.value)}
+                                    placeholder="Enter your display name"
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-purple-500 transition-colors"
+                               />
+                           </div>
+                           <div className="space-y-2">
+                               <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Room Code</label>
+                               <div className="relative">
+                                    <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                                    <input 
+                                            type="text" 
+                                            value={joinCustomCode}
+                                            onChange={(e) => setJoinCustomCode(e.target.value)}
+                                            placeholder="XXXXXX"
+                                            maxLength={8}
+                                            className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-10 pr-3 py-3 text-white font-mono uppercase outline-none focus:border-purple-500 transition-colors"
+                                    />
+                               </div>
+                           </div>
+                       </div>
+
+                       <button 
+                            onClick={handleCustomJoinSubmit}
+                            className="w-full mt-8 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
+                       >
+                           Join Room <ArrowRight size={18} />
+                       </button>
+                   </div>
+              </div>
+          </div>
+      )}
+
+      {/* Player Manager Modal */}
+      {showPlayerManager && (
+          <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in-up">
+              <div className="bg-slate-900 border border-slate-700 w-full max-w-5xl h-[85vh] rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+                  {/* Modal Header */}
+                  <div className="p-5 border-b border-slate-700 bg-slate-800/50 flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                          <div className="p-2 bg-purple-600 rounded-lg">
+                              <Database size={20} className="text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-2xl font-teko font-bold text-white uppercase tracking-wide leading-none">Manage Custom Player List</h3>
+                            <p className="text-xs text-slate-400 uppercase tracking-widest">{customPlayers?.length || 0} Players Loaded</p>
+                          </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                          {!editingPlayer && (
+                             <>
+                                 <button 
+                                    onClick={handleExportPlayers}
+                                    className="flex items-center gap-2 bg-blue-600/20 border border-blue-500/50 hover:bg-blue-600 text-blue-200 hover:text-white px-3 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all"
+                                    title="Export Cleaned List"
+                                 >
+                                    <FileOutput size={16} /> Export List
+                                 </button>
+                                 <button 
+                                    onClick={handleClearAllPlayers}
+                                    className="flex items-center gap-2 bg-red-900/50 border border-red-700 hover:bg-red-800 text-red-200 px-3 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all"
+                                    title="Remove all players"
+                                 >
+                                    <Trash2 size={16} /> Clear All
+                                 </button>
+                                 <button 
+                                    onClick={handleAddClick}
+                                    className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all"
+                                 >
+                                    <Plus size={16} /> Add Player
+                                 </button>
+                             </>
+                          )}
+                          <button onClick={() => setShowPlayerManager(false)} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors">
+                              <X size={20} />
+                          </button>
+                      </div>
+                  </div>
+
+                  {/* Modal Body */}
+                  <div className="flex-1 overflow-hidden p-6 relative">
+                      {editingPlayer ? (
+                          /* EDIT/ADD FORM */
+                          <div className="h-full overflow-y-auto custom-scrollbar animate-fade-in-up px-2">
+                              <h4 className="text-xl font-teko font-bold text-ipl-gold mb-6 uppercase border-b border-slate-700 pb-2">
+                                  {isAddingNew ? 'Add New Player' : 'Edit Player Details'}
+                              </h4>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div className="space-y-4">
+                                      <div className="flex flex-col gap-1">
+                                          <label className="text-xs uppercase font-bold text-slate-500">Player Name</label>
+                                          <input type="text" value={editingPlayer.name} onChange={e => setEditingPlayer({...editingPlayer, name: e.target.value})} className="bg-slate-950 border border-slate-700 p-3 rounded-lg text-white outline-none focus:border-purple-500" />
+                                      </div>
+                                      <div className="flex flex-col gap-1">
+                                          <label className="text-xs uppercase font-bold text-slate-500">Country</label>
+                                          <input type="text" value={editingPlayer.country} onChange={e => setEditingPlayer({...editingPlayer, country: e.target.value, isOverseas: e.target.value.toLowerCase() !== 'india'})} className="bg-slate-950 border border-slate-700 p-3 rounded-lg text-white outline-none focus:border-purple-500" />
+                                      </div>
+                                      <div className="flex flex-col gap-1">
+                                          <label className="text-xs uppercase font-bold text-slate-500">Role</label>
+                                          <select value={editingPlayer.role} onChange={e => setEditingPlayer({...editingPlayer, role: e.target.value as PlayerCategory})} className="bg-slate-950 border border-slate-700 p-3 rounded-lg text-white outline-none focus:border-purple-500">
+                                              {Object.values(PlayerCategory).map(role => <option key={role} value={role}>{role}</option>)}
+                                          </select>
+                                      </div>
+                                      <div className="flex flex-col gap-1">
+                                          <label className="text-xs uppercase font-bold text-slate-500">Auction Set</label>
+                                          <select value={editingPlayer.set} onChange={e => setEditingPlayer({...editingPlayer, set: e.target.value as AuctionSet})} className="bg-slate-950 border border-slate-700 p-3 rounded-lg text-white outline-none focus:border-purple-500">
+                                              {Object.values(AuctionSet).map(set => <option key={set} value={set}>{set}</option>)}
+                                          </select>
+                                      </div>
+                                       {/* ADDED: Is Uncapped Toggle */}
+                                      <div className="flex items-center gap-2 pt-2">
+                                          <input type="checkbox" checked={editingPlayer.isUncapped} onChange={e => setEditingPlayer({...editingPlayer, isUncapped: e.target.checked})} id="isUncapped" className="w-5 h-5 accent-purple-500 cursor-pointer" />
+                                          <label htmlFor="isUncapped" className="text-xs uppercase font-bold text-slate-500 cursor-pointer select-none">Is Uncapped Player?</label>
+                                      </div>
+                                  </div>
+                                  <div className="space-y-4">
+                                      <div className="flex flex-col gap-1">
+                                          <label className="text-xs uppercase font-bold text-slate-500">Base Price (₹)</label>
+                                          <input type="number" value={editingPlayer.basePrice} onChange={e => setEditingPlayer({...editingPlayer, basePrice: parseInt(e.target.value)})} className="bg-slate-950 border border-slate-700 p-3 rounded-lg text-white outline-none focus:border-purple-500" />
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-4">
+                                           <div className="flex flex-col gap-1">
+                                              <label className="text-xs uppercase font-bold text-slate-500">Matches</label>
+                                              <input type="number" value={editingPlayer.stats.matches} onChange={e => setEditingPlayer({...editingPlayer, stats: {...editingPlayer.stats, matches: parseInt(e.target.value)}})} className="bg-slate-950 border border-slate-700 p-3 rounded-lg text-white outline-none focus:border-purple-500" />
+                                          </div>
+                                          <div className="flex flex-col gap-1">
+                                              <label className="text-xs uppercase font-bold text-slate-500">Runs</label>
+                                              <input type="number" value={editingPlayer.stats.runs || 0} onChange={e => setEditingPlayer({...editingPlayer, stats: {...editingPlayer.stats, runs: parseInt(e.target.value)}})} className="bg-slate-950 border border-slate-700 p-3 rounded-lg text-white outline-none focus:border-purple-500" />
+                                          </div>
+                                          <div className="flex flex-col gap-1">
+                                              <label className="text-xs uppercase font-bold text-slate-500">Wickets</label>
+                                              <input type="number" value={editingPlayer.stats.wickets || 0} onChange={e => setEditingPlayer({...editingPlayer, stats: {...editingPlayer.stats, wickets: parseInt(e.target.value)}})} className="bg-slate-950 border border-slate-700 p-3 rounded-lg text-white outline-none focus:border-purple-500" />
+                                          </div>
+                                          <div className="flex flex-col gap-1">
+                                              <label className="text-xs uppercase font-bold text-slate-500">Image URL</label>
+                                              <input type="text" value={editingPlayer.imgUrl || ''} onChange={e => setEditingPlayer({...editingPlayer, imgUrl: e.target.value})} placeholder="https://..." className="bg-slate-950 border border-slate-700 p-3 rounded-lg text-white outline-none focus:border-purple-500" />
+                                          </div>
+                                      </div>
+                                      {/* Image Preview */}
+                                      {editingPlayer.imgUrl && (
+                                          <div className="mt-2 flex items-center gap-3 bg-slate-800/50 p-2 rounded-lg border border-slate-700/50">
+                                              <div className="w-12 h-12 rounded bg-slate-900 overflow-hidden border border-slate-700">
+                                                  <img src={editingPlayer.imgUrl} alt="Preview" className="w-full h-full object-cover" />
+                                              </div>
+                                              <span className="text-[10px] text-slate-500 uppercase tracking-widest">Image Preview</span>
+                                          </div>
+                                      )}
+                                  </div>
+                              </div>
+                              
+                              <div className="mt-8 flex gap-4 border-t border-slate-700 pt-6">
+                                  <button onClick={() => setEditingPlayer(null)} className="px-6 py-3 bg-slate-800 text-white rounded-xl font-bold uppercase tracking-wider hover:bg-slate-700 transition-colors">Cancel</button>
+                                  <button onClick={handleSavePlayer} className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold uppercase tracking-wider hover:bg-green-500 transition-colors shadow-lg flex items-center gap-2">
+                                      <Save size={18} /> Save Player
+                                  </button>
+                              </div>
+                          </div>
+                      ) : (
+                          /* LIST VIEW */
+                          <div className="flex flex-col h-full">
+                              <div className="flex gap-4 mb-4">
+                                  <div className="relative flex-1">
+                                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                                      <input 
+                                          type="text" 
+                                          placeholder="Search by name or country..." 
+                                          value={managerSearch}
+                                          onChange={e => setManagerSearch(e.target.value)}
+                                          className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-10 pr-4 py-3 text-sm text-white focus:border-purple-500 outline-none"
+                                      />
+                                  </div>
+                              </div>
+                              
+                              <div className="flex-1 overflow-y-auto custom-scrollbar border border-slate-700 rounded-lg bg-slate-900/50">
+                                  <table className="w-full text-left border-collapse">
+                                      <thead className="bg-slate-800 sticky top-0 z-10">
+                                          <tr>
+                                              <th className="p-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Player</th>
+                                              <th className="p-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Role</th>
+                                              <th className="p-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Base Price</th>
+                                              <th className="p-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Set</th>
+                                              <th className="p-3 text-xs uppercase font-bold text-slate-500 tracking-wider text-right">Actions</th>
+                                          </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-700/50">
+                                          {filteredManagerList.map(p => (
+                                              <tr key={p.id} className="hover:bg-slate-800/50 transition-colors">
+                                                  <td className="p-3 flex items-center gap-3">
+                                                      {/* ADDED: Image Thumbnail */}
+                                                      <div className="w-8 h-8 rounded bg-slate-800 flex-shrink-0 overflow-hidden border border-slate-700">
+                                                          {p.imgUrl ? <img src={p.imgUrl} className="w-full h-full object-cover" /> : <User size={16} className="text-slate-500 m-auto mt-2" />}
+                                                      </div>
+                                                      <div>
+                                                          <div className="font-bold text-white">{p.name}</div>
+                                                          <div className="text-[10px] text-slate-500 uppercase">{p.country}</div>
+                                                      </div>
+                                                  </td>
+                                                  <td className="p-3 text-sm text-slate-300">{p.role}</td>
+                                                  <td className="p-3 text-sm font-mono text-green-400">{formatCurrency(p.basePrice)}</td>
+                                                  <td className="p-3 text-xs text-slate-400 uppercase">{p.set.split('Set')[0]}</td>
+                                                  <td className="p-3 text-right">
+                                                      <div className="flex justify-end gap-2">
+                                                          <button 
+                                                            onClick={() => handleEditClick(p)} 
+                                                            className="p-2 bg-slate-800 border border-slate-700 rounded hover:bg-blue-600 hover:text-white hover:border-blue-500 transition-all text-slate-400"
+                                                            title="Edit"
+                                                          >
+                                                              <Edit size={14} />
+                                                          </button>
+                                                          <button 
+                                                            onClick={(e) => handleDeletePlayer(p.id, e)} 
+                                                            className="p-2 bg-slate-800 border border-slate-700 rounded hover:bg-red-600 hover:text-white hover:border-red-500 transition-all text-slate-400"
+                                                            title="Delete"
+                                                          >
+                                                              <Trash2 size={14} />
+                                                          </button>
+                                                      </div>
+                                                  </td>
+                                              </tr>
+                                          ))}
+                                          {filteredManagerList.length === 0 && (
+                                              <tr>
+                                                  <td colSpan={5} className="p-8 text-center text-slate-500 italic">No players found</td>
+                                              </tr>
+                                          )}
+                                      </tbody>
+                                  </table>
+                              </div>
+                          </div>
+                      )}
+                  </div>
+              </div>
+          </div>
+      )}
 
       <div className="z-10 text-center max-w-7xl w-full">
         
         {/* Dynamic Header */}
-        {lobbyStep !== 'ROLES' && lobbyStep !== 'MULTIPLAYER_SETUP' && lobbyStep !== 'MULTIPLAYER_WAITING_ROOM' && (
+        {lobbyStep !== 'ROLES' && lobbyStep !== 'MULTIPLAYER_SETUP' && lobbyStep !== 'MULTIPLAYER_WAITING_ROOM' && lobbyStep !== 'CUSTOM_ROOM_SETUP' && (
              <div className="mb-12 animate-fade-in-down">
                 <h1 className="text-7xl md:text-9xl font-bold font-teko text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-400 drop-shadow-2xl tracking-tight leading-none">
                     {selectedMode ? selectedMode.title : `IPL 20${yearSuffix}`}
@@ -276,10 +946,9 @@ const Lobby: React.FC = () => {
                     </div>
                 </div>
 
-                {/* BOX 3: CUSTOM BIT */}
+                {/* BOX 3: CUSTOM BIT (Modified) */}
                 <div 
-                    onClick={() => handleModeSelect('CUSTOM')}
-                    className="group relative cursor-pointer h-96 rounded-3xl overflow-hidden border border-purple-500/30 hover:border-purple-400 transition-all duration-500 hover:shadow-[0_0_50px_rgba(168,85,247,0.3)] hover:-translate-y-2 bg-slate-900"
+                    className="group relative h-96 rounded-3xl overflow-hidden border border-purple-500/30 bg-slate-900 transition-all duration-500 hover:shadow-[0_0_50px_rgba(168,85,247,0.3)] hover:-translate-y-2"
                 >
                     <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1000&auto=format&fit=crop')] bg-cover bg-center opacity-40 group-hover:scale-110 transition-transform duration-700"></div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
@@ -288,15 +957,200 @@ const Lobby: React.FC = () => {
                         <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-pink-700 flex items-center justify-center mb-6 shadow-lg group-hover:rotate-12 transition-transform">
                             <Settings size={40} className="text-white" />
                         </div>
-                        <h2 className="text-5xl font-teko font-bold text-white mb-2 group-hover:text-purple-400 transition-colors">CUSTOM BIT</h2>
-                        <p className="text-slate-300 text-sm max-w-[80%] leading-relaxed">Create your own rules. Set custom purses, player sets, and invite friends for a private league.</p>
-                        <div className="mt-8 px-6 py-2 border border-purple-500/50 rounded-full text-purple-400 uppercase tracking-widest text-xs font-bold group-hover:bg-purple-500 group-hover:text-white transition-all">
-                            Create Custom Room
+                        <h2 className="text-5xl font-teko font-bold text-white mb-2 text-purple-400">CUSTOM BIT</h2>
+                        <p className="text-slate-300 text-sm max-w-[80%] leading-relaxed mb-6">Create your own rules or join a private league.</p>
+                        
+                        <div className="flex gap-4">
+                            <button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleModeSelect('CUSTOM');
+                                }}
+                                className="px-6 py-2 border border-purple-500 bg-purple-600/20 hover:bg-purple-600 text-white rounded-full uppercase tracking-widest text-xs font-bold transition-all shadow-lg hover:shadow-purple-500/20"
+                            >
+                                Create Room
+                            </button>
+                            <button 
+                                 onClick={(e) => {
+                                    e.stopPropagation();
+                                    openJoinCustomModal();
+                                }}
+                                className="px-6 py-2 border border-white/20 bg-white/5 hover:bg-white/20 text-white rounded-full uppercase tracking-widest text-xs font-bold transition-all"
+                            >
+                                Join Room
+                            </button>
                         </div>
                     </div>
                 </div>
 
              </div>
+        )}
+
+        {/* STEP 1.5: CUSTOM ROOM SETUP (Replaces Single/Multi for Custom) */}
+        {lobbyStep === 'CUSTOM_ROOM_SETUP' && (
+            <div className="w-full max-w-5xl px-4 animate-scale-in">
+                <h2 className="text-5xl font-teko font-bold text-white mb-6 text-left">Create Custom Room</h2>
+                
+                {/* Auction Rules Section */}
+                <div className="glass-panel p-6 rounded-2xl border border-slate-700/50 mb-6">
+                    <h3 className="text-purple-400 font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <Settings size={18} /> Auction Rules
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="flex flex-col gap-2 text-left">
+                            <label className="text-slate-400 text-xs font-bold uppercase tracking-wide">Room Name</label>
+                            <input 
+                                type="text" 
+                                value={customRoomName} 
+                                onChange={(e) => setCustomRoomName(e.target.value)}
+                                className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:border-purple-500 outline-none"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-2 text-left">
+                            <label className="text-slate-400 text-xs font-bold uppercase tracking-wide">Team Budget (Crores)</label>
+                            <input 
+                                type="number" 
+                                value={customBudget} 
+                                onChange={(e) => handleCustomBudgetChange(e.target.value)}
+                                className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:border-purple-500 outline-none"
+                            />
+                        </div>
+                         <div className="flex flex-col gap-2 text-left">
+                            <label className="text-slate-400 text-xs font-bold uppercase tracking-wide">Max Overseas Players: <span className="text-white">{customMaxOverseas}</span></label>
+                            <input 
+                                type="range" 
+                                min="1" max="11" 
+                                value={customMaxOverseas} 
+                                onChange={(e) => setCustomMaxOverseas(parseInt(e.target.value))}
+                                className="w-full accent-purple-500 h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer mt-3"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-2 text-left">
+                            <label className="text-slate-400 text-xs font-bold uppercase tracking-wide">Min Bid Increment</label>
+                            <select 
+                                value={customMinBid}
+                                onChange={(e) => setCustomMinBid(parseInt(e.target.value))}
+                                className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:border-purple-500 outline-none"
+                            >
+                                <option value={0}>Standard (Dynamic)</option>
+                                <option value={2000000}>20 Lakhs</option>
+                                <option value={5000000}>50 Lakhs</option>
+                                <option value={10000000}>1 Crore</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Participating Teams Section */}
+                <div className="glass-panel p-6 rounded-2xl border border-slate-700/50 mb-6">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-blue-400 font-bold uppercase tracking-wider flex items-center gap-2">
+                            <Users size={18} /> Participating Teams
+                        </h3>
+                        {customTeams.length < INITIAL_TEAMS.length && (
+                             <button onClick={restoreTeams} className="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded text-white transition-colors">
+                                Reset Teams
+                             </button>
+                        )}
+                    </div>
+                    
+                    <div className="grid grid-cols-1 gap-3 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+                        {customTeams.map(team => (
+                            <div key={team.id} className="flex items-center justify-between bg-slate-900/50 border border-slate-700 p-3 rounded-lg hover:bg-slate-800/80 transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center p-1 border border-slate-600">
+                                        <TeamLogo team={team} className="w-full h-full object-contain" />
+                                    </div>
+                                    <span className="text-white font-bold text-sm">{team.name}</span>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-slate-500 uppercase">Purse</span>
+                                        <span className="text-sm font-mono text-green-400 font-bold">{customBudget} Cr</span>
+                                    </div>
+                                    <div className="bg-slate-800 px-2 py-1 rounded text-[10px] text-slate-400 font-bold border border-slate-700">BOT</div>
+                                    <button 
+                                        onClick={() => toggleTeamActive(team.id)}
+                                        className="text-slate-500 hover:text-red-500 transition-colors p-1"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <button className="mt-4 w-full py-2 border border-dashed border-slate-600 text-slate-500 rounded-lg hover:text-white hover:border-slate-500 transition-colors text-sm uppercase tracking-wide flex items-center justify-center gap-2 cursor-not-allowed opacity-50">
+                        <Plus size={16} /> Add Team (Limit Reached)
+                    </button>
+                </div>
+
+                {/* Player Pool Section */}
+                <div className="glass-panel p-6 rounded-2xl border border-slate-700/50 mb-8">
+                     <h3 className="text-yellow-400 font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <Database size={18} /> Player Pool
+                    </h3>
+                    
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleFileUpload} 
+                        accept=".xlsx, .xls, .csv, .json" 
+                        className="hidden" 
+                    />
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         {/* Download Template Button */}
+                        <button 
+                            onClick={handleDownloadTemplate}
+                            className="border py-4 rounded-xl font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white hover:border-slate-500"
+                        >
+                            <Download size={18} /> Download Template
+                        </button>
+                        
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={handleUploadClick}
+                                className={`flex-1 border py-4 rounded-xl font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${customPlayers !== null ? 'bg-purple-600 border-purple-500 text-white shadow-lg' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                            >
+                                <FileSpreadsheet size={18} /> {customPlayers !== null ? 'Re-upload List' : 'Upload Excel/CSV'}
+                            </button>
+                            
+                            {/* New Manage Button */}
+                            <button 
+                                onClick={openPlayerManager}
+                                className="px-6 border border-slate-700 bg-slate-800 hover:bg-purple-600 hover:border-purple-500 hover:text-white text-slate-400 rounded-xl transition-all"
+                                title="Manage Players"
+                            >
+                                <Edit size={20} />
+                            </button>
+                        </div>
+                    </div>
+                    {customPlayers !== null && (
+                         <div className="mt-3 text-center">
+                             <span className="text-xs text-green-400 font-mono">Loaded {customPlayers.length} players from {customListFileName}</span>
+                         </div>
+                    )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-4">
+                    <button 
+                        onClick={() => {
+                            setLobbyStep('MODES');
+                            setSelectedMode(null);
+                        }}
+                        className="flex-1 py-4 bg-slate-800 text-white rounded-xl font-bold uppercase tracking-widest hover:bg-slate-700 transition-all"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        onClick={handleCreateCustomRoom}
+                        className="flex-[2] py-4 bg-green-600 text-white rounded-xl font-bold uppercase tracking-widest hover:bg-green-500 transition-all shadow-lg hover:shadow-green-500/20"
+                    >
+                        Create Room
+                    </button>
+                </div>
+            </div>
         )}
 
         {/* STEP 2: PLAY MODE SELECTION (SINGLE / MULTI) */}
@@ -496,29 +1350,58 @@ const Lobby: React.FC = () => {
                      {/* Player List */}
                      <div className="glass-panel rounded-2xl p-6 border border-slate-700/50 flex-1 flex flex-col">
                          <h3 className="text-slate-300 uppercase tracking-widest text-sm font-bold mb-4 flex items-center gap-2">
-                             <Users size={16} /> Players (1)
+                             <Users size={16} /> Players ({connectedUsers.length})
                          </h3>
                          
                          <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                             {/* Self (Mocked) */}
-                             <div className="flex items-center gap-3 bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
-                                 <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-lg">
-                                     {userName.charAt(0).toUpperCase()}
-                                 </div>
-                                 <div className="flex-1">
-                                     <div className="text-white font-bold text-sm uppercase">{userName.toUpperCase()}</div>
-                                     <div className="text-[10px] text-yellow-500 font-bold uppercase tracking-wider">{isHost ? 'Host' : 'Guest'}</div>
-                                 </div>
-                             </div>
-                             {/* Mock other players would go here */}
+                             {connectedUsers.map((user, index) => {
+                                 const isMe = user.name === contextUserName;
+                                 const isUserHost = index === 0; // Assuming creator is first in mock list
+                                 
+                                 return (
+                                     <div key={index} className="flex flex-col gap-2 bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
+                                         <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-sm">
+                                                {user.name.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="text-white font-bold text-sm truncate max-w-[100px]">{user.name}</div>
+                                                    {isMe && <span className="text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded uppercase">You</span>}
+                                                </div>
+                                                <div className="text-[10px] text-yellow-500 font-bold uppercase tracking-wider">{isUserHost ? 'Host' : 'Guest'}</div>
+                                            </div>
+                                         </div>
+                                         
+                                         {/* Team Assignment Logic */}
+                                         {isHost ? (
+                                             <select 
+                                                className="w-full bg-slate-900 border border-slate-700 text-xs text-white p-2 rounded outline-none focus:border-blue-500"
+                                                value={user.selectedTeamId || ''}
+                                                onChange={(e) => assignTeamToUser(user.name, e.target.value)}
+                                             >
+                                                 <option value="">Assign Team...</option>
+                                                 {teams.map(t => (
+                                                     <option key={t.id} value={t.id}>{t.shortName}</option>
+                                                 ))}
+                                             </select>
+                                         ) : (
+                                             user.selectedTeamId && (
+                                                 <div className="flex items-center gap-2 bg-slate-900/50 p-1.5 rounded border border-slate-800">
+                                                     <div className="w-4 h-4 rounded-full bg-slate-700 overflow-hidden">
+                                                         {/* Mini Logo */}
+                                                         <TeamLogo team={teams.find(t => t.id === user.selectedTeamId)} className="w-full h-full object-cover" />
+                                                     </div>
+                                                     <span className="text-xs text-slate-300 font-bold">{teams.find(t => t.id === user.selectedTeamId)?.shortName}</span>
+                                                 </div>
+                                             )
+                                         )}
+                                     </div>
+                                 );
+                             })}
                          </div>
 
                          <div className="mt-4 pt-4 border-t border-slate-700">
-                             <select className="w-full bg-slate-900 border border-slate-700 text-slate-400 text-sm p-3 rounded-lg outline-none focus:border-blue-500 mb-4">
-                                 <option>Assign Team...</option>
-                                 {/* Only Host sees this typically */}
-                             </select>
-                             
                              {isHost ? (
                                  <button 
                                     onClick={handleStartAuction}
@@ -542,24 +1425,41 @@ const Lobby: React.FC = () => {
                      <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-12">
                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                             {teams.map(team => {
-                                const isSelected = userTeamId === team.id;
+                                // Calculate Taken Status
+                                const takenBy = connectedUsers.find(u => u.selectedTeamId === team.id);
+                                const isTaken = !!takenBy && takenBy.name !== contextUserName; // Taken by someone else
+                                const isSelectedByMe = userTeamId === team.id;
+                                
                                 const styles = getTeamStyles(team.id);
+                                
                                 return (
                                     <div 
                                         key={team.id}
-                                        onClick={() => handleSelectTeam(team.id)}
-                                        className={`cursor-pointer rounded-xl border p-4 flex items-center gap-4 transition-all duration-200 ${isSelected ? `bg-slate-800 border-${styles.text.split('-')[1]}-500 shadow-lg shadow-${styles.text.split('-')[1]}-500/20` : 'bg-slate-900/50 border-slate-700 hover:border-slate-500 hover:bg-slate-800'}`}
+                                        onClick={() => !isTaken && handleSelectTeam(team.id)}
+                                        className={`relative rounded-xl border p-4 flex items-center gap-4 transition-all duration-200 
+                                            ${isTaken ? 'opacity-75 cursor-not-allowed border-red-900/50 bg-red-900/10' : 'cursor-pointer'}
+                                            ${isSelectedByMe ? `bg-slate-800 border-${styles.text.split('-')[1]}-500 shadow-lg shadow-${styles.text.split('-')[1]}-500/20` : (!isTaken && 'bg-slate-900/50 border-slate-700 hover:border-slate-500 hover:bg-slate-800')}
+                                        `}
                                     >
+                                        {/* TAKEN BADGE */}
+                                        {isTaken && (
+                                            <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg z-10 animate-in fade-in zoom-in uppercase tracking-wider">
+                                                TAKEN
+                                            </div>
+                                        )}
+
                                         <div className="w-16 h-16 rounded-full bg-slate-950 flex items-center justify-center p-2 border border-slate-700 shrink-0">
-                                            <TeamLogo team={team} className="w-full h-full object-contain" />
+                                            <TeamLogo team={team} className={`w-full h-full object-contain ${isTaken ? 'grayscale' : ''}`} />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex justify-between items-center mb-1">
-                                                <h3 className="text-xl font-teko font-bold text-white tracking-wide truncate pr-2">{team.shortName}</h3>
-                                                {isSelected && <CheckCircle2 size={20} className="text-green-500 shrink-0" />}
+                                                <h3 className={`text-xl font-teko font-bold tracking-wide truncate pr-2 ${isTaken ? 'text-slate-500' : 'text-white'}`}>{team.shortName}</h3>
+                                                {isSelectedByMe && <CheckCircle2 size={20} className="text-green-500 shrink-0" />}
                                             </div>
                                             <div className="text-xs text-slate-400 mb-1">Purse: <span className="text-white font-mono">{formatCurrency(team.purseRemaining)}</span></div>
-                                            <div className="text-[10px] text-slate-500 uppercase tracking-widest">Click to Select</div>
+                                            <div className="text-[10px] text-slate-500 uppercase tracking-widest">
+                                                {isTaken ? `Taken by ${takenBy?.name}` : 'Click to Select'}
+                                            </div>
                                         </div>
                                     </div>
                                 );

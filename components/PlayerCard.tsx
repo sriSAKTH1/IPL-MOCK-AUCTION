@@ -1,7 +1,8 @@
+
 import React from 'react';
-import { Player } from '../types';
+import { Player, PlayerCategory } from '../types';
 import { formatCurrency } from '../constants';
-import { User, MapPin, Sparkles, Zap, Trophy, TrendingUp, Target, Shield, Activity } from 'lucide-react';
+import { User, MapPin, Sparkles, Zap, Trophy, TrendingUp, Target, Shield, Activity, Bot } from 'lucide-react';
 
 interface PlayerCardProps {
   player: Player | null;
@@ -35,10 +36,13 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player, currentBidAmount }) => 
             
             {/* Left: Player Visuals (Simulated) */}
             <div className="md:w-5/12 relative bg-gradient-to-b from-slate-800 to-slate-950 flex items-end justify-center overflow-hidden border-r border-slate-700/50 p-6 md:p-0">
-                <div className="absolute top-4 left-4 z-10">
+                <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 items-start">
                     <span className={`px-3 py-1 text-sm font-bold tracking-widest uppercase rounded flex items-center gap-1 shadow-lg ${isOverseas ? 'bg-purple-900 text-purple-200 border border-purple-500' : 'bg-blue-900 text-blue-200 border border-blue-500'}`}>
                         {isOverseas ? <span className="text-lg">✈</span> : <span className="text-lg">IN</span>}
                         {isOverseas ? 'Overseas' : 'Indian'}
+                    </span>
+                    <span className="px-3 py-1 text-[10px] font-bold tracking-widest uppercase rounded bg-slate-800/90 text-ipl-gold border border-ipl-gold/30 shadow-lg backdrop-blur-md">
+                        {player.set}
                     </span>
                 </div>
                 {player.isUncapped && (
@@ -91,7 +95,7 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player, currentBidAmount }) => 
 
                 {/* Stats Grid - Enhanced */}
                 <div className="grid grid-cols-3 gap-3 mb-8">
-                    {/* Matches */}
+                    {/* Matches - Always shown */}
                     <div className="bg-slate-800/40 border border-slate-700/50 p-3 rounded-xl flex flex-col items-center justify-center backdrop-blur-sm hover:bg-slate-800 transition-colors group">
                         <div className="flex items-center gap-1 mb-1">
                             <Activity size={10} className="text-slate-500 group-hover:text-blue-400" />
@@ -100,59 +104,64 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player, currentBidAmount }) => 
                         <span className="text-2xl font-mono font-bold text-white">{player.stats.matches}</span>
                     </div>
 
-                    {/* Runs */}
-                    {player.stats.runs !== undefined && (
-                        <div className="bg-slate-800/40 border border-slate-700/50 p-3 rounded-xl flex flex-col items-center justify-center backdrop-blur-sm hover:bg-slate-800 transition-colors group">
-                            <div className="flex items-center gap-1 mb-1">
-                                <TrendingUp size={10} className="text-slate-500 group-hover:text-yellow-400" />
-                                <span className="text-[10px] text-slate-500 uppercase tracking-widest group-hover:text-yellow-400 transition-colors">Runs</span>
+                    {/* BATSMAN & WICKET_KEEPER: Runs & Strike Rate */}
+                    {(player.role === PlayerCategory.BATSMAN || player.role === PlayerCategory.WICKET_KEEPER) && (
+                        <>
+                            <div className="bg-slate-800/40 border border-slate-700/50 p-3 rounded-xl flex flex-col items-center justify-center backdrop-blur-sm hover:bg-slate-800 transition-colors group">
+                                <div className="flex items-center gap-1 mb-1">
+                                    <TrendingUp size={10} className="text-slate-500 group-hover:text-yellow-400" />
+                                    <span className="text-[10px] text-slate-500 uppercase tracking-widest group-hover:text-yellow-400 transition-colors">Runs</span>
+                                </div>
+                                <span className="text-2xl font-mono font-bold text-white">{player.stats.runs || 0}</span>
                             </div>
-                             <span className="text-2xl font-mono font-bold text-white">{player.stats.runs}</span>
-                        </div>
+                            <div className="bg-slate-800/40 border border-slate-700/50 p-3 rounded-xl flex flex-col items-center justify-center backdrop-blur-sm hover:bg-slate-800 transition-colors group">
+                                <div className="flex items-center gap-1 mb-1">
+                                    <Zap size={10} className="text-slate-500 group-hover:text-orange-400" />
+                                    <span className="text-[10px] text-slate-500 uppercase tracking-widest group-hover:text-orange-400 transition-colors">SR</span>
+                                </div>
+                                <span className="text-2xl font-mono font-bold text-white">{player.stats.strikeRate || 0}</span>
+                            </div>
+                        </>
                     )}
 
-                    {/* Batting Average */}
-                    {player.stats.average !== undefined && (
-                        <div className="bg-slate-800/40 border border-slate-700/50 p-3 rounded-xl flex flex-col items-center justify-center backdrop-blur-sm hover:bg-slate-800 transition-colors group">
-                            <div className="flex items-center gap-1 mb-1">
-                                <Trophy size={10} className="text-slate-500 group-hover:text-yellow-400" />
-                                <span className="text-[10px] text-slate-500 uppercase tracking-widest group-hover:text-yellow-400 transition-colors">Avg</span>
+                    {/* ALL_ROUNDER: Runs & Wickets */}
+                    {player.role === PlayerCategory.ALL_ROUNDER && (
+                         <>
+                            <div className="bg-slate-800/40 border border-slate-700/50 p-3 rounded-xl flex flex-col items-center justify-center backdrop-blur-sm hover:bg-slate-800 transition-colors group">
+                                <div className="flex items-center gap-1 mb-1">
+                                    <TrendingUp size={10} className="text-slate-500 group-hover:text-yellow-400" />
+                                    <span className="text-[10px] text-slate-500 uppercase tracking-widest group-hover:text-yellow-400 transition-colors">Runs</span>
+                                </div>
+                                <span className="text-2xl font-mono font-bold text-white">{player.stats.runs || 0}</span>
                             </div>
-                             <span className="text-2xl font-mono font-bold text-white">{player.stats.average}</span>
-                        </div>
+                            <div className="bg-slate-800/40 border border-slate-700/50 p-3 rounded-xl flex flex-col items-center justify-center backdrop-blur-sm hover:bg-slate-800 transition-colors group">
+                                <div className="flex items-center gap-1 mb-1">
+                                    <Target size={10} className="text-slate-500 group-hover:text-purple-400" />
+                                    <span className="text-[10px] text-slate-500 uppercase tracking-widest group-hover:text-purple-400 transition-colors">Wkts</span>
+                                </div>
+                                <span className="text-2xl font-mono font-bold text-white">{player.stats.wickets || 0}</span>
+                            </div>
+                         </>
                     )}
 
-                    {/* Strike Rate */}
-                    {player.stats.strikeRate !== undefined && (
-                        <div className="bg-slate-800/40 border border-slate-700/50 p-3 rounded-xl flex flex-col items-center justify-center backdrop-blur-sm hover:bg-slate-800 transition-colors group">
-                            <div className="flex items-center gap-1 mb-1">
-                                <Zap size={10} className="text-slate-500 group-hover:text-orange-400" />
-                                <span className="text-[10px] text-slate-500 uppercase tracking-widest group-hover:text-orange-400 transition-colors">SR</span>
+                    {/* BOWLER: Wickets & Economy */}
+                    {player.role === PlayerCategory.BOWLER && (
+                         <>
+                            <div className="bg-slate-800/40 border border-slate-700/50 p-3 rounded-xl flex flex-col items-center justify-center backdrop-blur-sm hover:bg-slate-800 transition-colors group">
+                                <div className="flex items-center gap-1 mb-1">
+                                    <Target size={10} className="text-slate-500 group-hover:text-purple-400" />
+                                    <span className="text-[10px] text-slate-500 uppercase tracking-widest group-hover:text-purple-400 transition-colors">Wkts</span>
+                                </div>
+                                <span className="text-2xl font-mono font-bold text-white">{player.stats.wickets || 0}</span>
                             </div>
-                             <span className="text-2xl font-mono font-bold text-white">{player.stats.strikeRate}</span>
-                        </div>
-                    )}
-                    
-                    {/* Wickets */}
-                    {player.stats.wickets !== undefined && (
-                        <div className="bg-slate-800/40 border border-slate-700/50 p-3 rounded-xl flex flex-col items-center justify-center backdrop-blur-sm hover:bg-slate-800 transition-colors group">
-                            <div className="flex items-center gap-1 mb-1">
-                                <Target size={10} className="text-slate-500 group-hover:text-purple-400" />
-                                <span className="text-[10px] text-slate-500 uppercase tracking-widest group-hover:text-purple-400 transition-colors">Wkts</span>
+                            <div className="bg-slate-800/40 border border-slate-700/50 p-3 rounded-xl flex flex-col items-center justify-center backdrop-blur-sm hover:bg-slate-800 transition-colors group">
+                                <div className="flex items-center gap-1 mb-1">
+                                    <Shield size={10} className="text-slate-500 group-hover:text-green-400" />
+                                    <span className="text-[10px] text-slate-500 uppercase tracking-widest group-hover:text-green-400 transition-colors">Econ</span>
+                                </div>
+                                <span className="text-2xl font-mono font-bold text-white">{player.stats.economy || 0}</span>
                             </div>
-                             <span className="text-2xl font-mono font-bold text-white">{player.stats.wickets}</span>
-                        </div>
-                    )}
-
-                    {/* Economy */}
-                    {player.stats.economy !== undefined && (
-                        <div className="bg-slate-800/40 border border-slate-700/50 p-3 rounded-xl flex flex-col items-center justify-center backdrop-blur-sm hover:bg-slate-800 transition-colors group">
-                            <div className="flex items-center gap-1 mb-1">
-                                <Shield size={10} className="text-slate-500 group-hover:text-green-400" />
-                                <span className="text-[10px] text-slate-500 uppercase tracking-widest group-hover:text-green-400 transition-colors">Econ</span>
-                            </div>
-                             <span className="text-2xl font-mono font-bold text-white">{player.stats.economy}</span>
-                        </div>
+                         </>
                     )}
                 </div>
 

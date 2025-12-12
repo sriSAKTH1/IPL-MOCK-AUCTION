@@ -1,19 +1,25 @@
+
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { AuctionState, Bid, Player, Team, PlayerCategory } from '../types';
+import { AuctionState, Bid, Player, Team, PlayerCategory, AuctionRules, AuctionSet } from '../types';
 import { 
   INITIAL_TEAMS, 
   MOCK_PLAYERS, 
   MAX_OVERSEAS, 
   MAX_SQUAD_SIZE, 
   getNextBidAmount, 
-  MIN_BATTERS,
-  MIN_BOWLERS,
-  MIN_WKS,
-  MIN_ALLROUNDERS,
-  TOTAL_PURSE,
-  MINI_AUCTION_2026_PURSES
+  MIN_BATTERS, 
+  MIN_BOWLERS, 
+  MIN_WKS, 
+  MIN_ALLROUNDERS, 
+  TOTAL_PURSE, 
+  MINI_AUCTION_2026_PURSES 
 } from '../constants';
 import { getPlayerAnalysis } from '../services/geminiService';
+
+export interface ConnectedUser {
+  name: string;
+  selectedTeamId?: string;
+}
 
 interface AuctionContextType extends AuctionState {
   startAuction: () => void;
@@ -31,15 +37,47 @@ interface AuctionContextType extends AuctionState {
   setAuctionMode: (mode: 'MEGA' | 'MINI') => void;
   userName: string;
   setUserName: (name: string) => void;
+  setupCustomAuction: (teams: Team[], players: Player[], rules: AuctionRules) => void;
+  joinRoom: (name: string, code: string) => void;
+  connectedUsers: ConnectedUser[];
+  selectTeam: (teamId: string) => void;
+  assignTeamToUser: (userName: string, teamId: string) => void;
 }
 
 const AuctionContext = createContext<AuctionContextType | null>(null);
+
+// Define strict set order for the auction
+const AUCTION_SETS_ORDER = [
+  AuctionSet.MARQUEE,
+  AuctionSet.BATTERS_1,
+  AuctionSet.ALLROUNDERS_1,
+  AuctionSet.WICKETKEEPERS_1,
+  AuctionSet.FAST_BOWLERS_1,
+  AuctionSet.SPINNERS_1,
+  AuctionSet.UNCAPPED
+];
+
+// Helper to sort players based on the defined set order
+const sortPlayersBySet = (list: Player[]) => {
+  return [...list].sort((a, b) => {
+    const idxA = AUCTION_SETS_ORDER.indexOf(a.set);
+    const idxB = AUCTION_SETS_ORDER.indexOf(b.set);
+    
+    // If a set is not in the order list (e.g. custom set), push it to the end
+    const valA = idxA === -1 ? 999 : idxA;
+    const valB = idxB === -1 ? 999 : idxB;
+    
+    return valA - valB;
+  });
+};
 
 export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // State
   const [phase, setPhase] = useState<'LOBBY' | 'AUCTION' | 'SUMMARY'>('LOBBY');
   const [teams, setTeams] = useState<Team[]>(INITIAL_TEAMS);
-  const [players, setPlayers] = useState<Player[]>(MOCK_PLAYERS);
+  // Initialize players sorted by set
+  const [players, setPlayers] = useState<Player[]>(() => sortPlayersBySet(MOCK_PLAYERS));
+  
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
   const [currentBid, setCurrentBid] = useState<Bid | null>(null);
   const [timer, setTimer] = useState<number>(20);
@@ -51,6 +89,16 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [roomCode, setRoomCode] = useState<string>('');
   const [gameMode, setGameMode] = useState<'SINGLE' | 'MULTI'>('SINGLE');
   const [userName, setUserName] = useState<string>('Player');
+  
+  // Multiplayer Mock State
+  const [connectedUsers, setConnectedUsers] = useState<ConnectedUser[]>([]);
+  
+  // Custom Rules State
+  const [rules, setRules] = useState<AuctionRules>({
+    maxOverseas: MAX_OVERSEAS,
+    maxSquadSize: MAX_SQUAD_SIZE,
+    minBidIncrement: 0
+  });
   
   // AI Bot State
   const [isAutoPilot, setIsAutoPilot] = useState<boolean>(false); // For user team automation
@@ -99,20 +147,22 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   
   // Evaluates whether a team SHOULD bid for the current player based on needs and budget
   const evaluateBid = (team: Team, player: Player, currentAmount: number): boolean => {
-      // 1. Basic Rules Check
-      if (team.squadCount >= MAX_SQUAD_SIZE) return false;
-      if (player.isOverseas && team.overseasCount >= MAX_OVERSEAS) return false;
+      // 1. Basic Rules Check (Using Dynamic Rules)
+      if (team.squadCount >= rules.maxSquadSize) return false;
+      if (player.isOverseas && team.overseasCount >= rules.maxOverseas) return false;
       
-      const nextBid = getNextBidAmount(currentAmount);
+      const standardIncrement = getNextBidAmount(currentAmount) - currentAmount;
+      const effectiveIncrement = Math.max(standardIncrement, rules.minBidIncrement);
+      const nextBid = currentAmount + effectiveIncrement;
       
-      // 2. Hard Cap for Bots (User Request: 5.5 Cr limit)
+      // 2. Hard Cap for Bots (User Request: 5.5 Cr limit - adjusted for high budget customs? Keep simple for now)
       if (nextBid > 55000000) return false;
 
       if (team.purseRemaining < nextBid) return false;
 
       // 3. Budget Reservation Logic
       // Reserve approx 20L per remaining slot to ensure squad completion
-      const slotsRemaining = MAX_SQUAD_SIZE - team.squadCount;
+      const slotsRemaining = rules.maxSquadSize - team.squadCount;
       const minPurseRequired = slotsRemaining * 2000000; 
       if ((team.purseRemaining - nextBid) < minPurseRequired) return false;
 
@@ -197,6 +247,8 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const handleTimerExpiry = () => {
     if (timerInterval.current) clearInterval(timerInterval.current);
     
+    const timestamp = Date.now();
+
     // Determine SOLD or UNSOLD
     if (currentBid) {
       const soldPrice = currentBid.amount;
@@ -204,7 +256,7 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       
       setPlayers(prev => prev.map(p => 
         p.id === currentPlayerId 
-          ? { ...p, status: 'SOLD', soldPrice, soldTo: winnerId } 
+          ? { ...p, status: 'SOLD', soldPrice, soldTo: winnerId, timestamp } 
           : p
       ));
 
@@ -224,14 +276,13 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     } else {
       setPlayers(prev => prev.map(p => 
-        p.id === currentPlayerId ? { ...p, status: 'UNSOLD' } : p
+        p.id === currentPlayerId ? { ...p, status: 'UNSOLD', timestamp } : p
       ));
     }
 
     setIsPaused(true);
 
     // Auto-proceed logic REMOVED to allow "Stop Page" behavior as requested.
-    // The overlay will now persist until the user (Host or Single Player) clicks Next.
     if (autoNextTimeoutRef.current) clearTimeout(autoNextTimeoutRef.current);
   };
 
@@ -249,6 +300,7 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const nextPlayer = () => {
     if (autoNextTimeoutRef.current) clearTimeout(autoNextTimeoutRef.current); // Clear any pending auto-next
     
+    // Since players are sorted by set on init, simple find will respect set order
     const nextP = players.find(p => p.status === 'UPCOMING');
     if (nextP) {
       setCurrentPlayerId(nextP.id);
@@ -263,7 +315,7 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const skipPlayer = () => {
      if (!currentPlayerId) return;
-     setPlayers(prev => prev.map(p => p.id === currentPlayerId ? { ...p, status: 'UNSOLD' } : p));
+     setPlayers(prev => prev.map(p => p.id === currentPlayerId ? { ...p, status: 'UNSOLD', timestamp: Date.now() } : p));
      setIsPaused(true);
      setCurrentBid(null);
   };
@@ -279,12 +331,14 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     if (!team || !player) return;
 
-    if (team.squadCount >= MAX_SQUAD_SIZE) return; // Silent fail for bots
-    if (player.isOverseas && team.overseasCount >= MAX_OVERSEAS) return;
+    if (team.squadCount >= rules.maxSquadSize) return; // Use dynamic rule
+    if (player.isOverseas && team.overseasCount >= rules.maxOverseas) return; // Use dynamic rule
 
     let bidAmount = player.basePrice;
     if (currentBid) {
-      bidAmount = getNextBidAmount(currentBid.amount);
+      const standardIncrement = getNextBidAmount(currentBid.amount) - currentBid.amount;
+      const effectiveIncrement = Math.max(standardIncrement, rules.minBidIncrement);
+      bidAmount = currentBid.amount + effectiveIncrement;
     }
 
     if (team.purseRemaining < bidAmount) return;
@@ -325,6 +379,42 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }));
   };
 
+  const setupCustomAuction = (newTeams: Team[], newPlayers: Player[], newRules: AuctionRules) => {
+    setTeams(newTeams);
+    // Sort the custom player list to ensure set-by-set flow
+    setPlayers(sortPlayersBySet(newPlayers));
+    setRules(newRules);
+    setGameMode('SINGLE'); // Default to single player for custom sandbox
+    setIsHost(true);
+  };
+
+  const joinRoom = (name: string, code: string) => {
+      setUserName(name);
+      setRoomCode(code);
+      setConnectedUsers(prev => {
+          if(prev.find(u => u.name === name)) return prev;
+          return [...prev, { name }];
+      });
+  };
+
+  const selectTeam = (teamId: string) => {
+     setUserTeamId(teamId);
+     setRole('TEAM', teamId);
+     setConnectedUsers(prev => prev.map(u => u.name === userName ? { ...u, selectedTeamId: teamId } : u));
+  };
+
+  const assignTeamToUser = (targetUserName: string, teamId: string) => {
+    setConnectedUsers(prev => prev.map(u => 
+        u.name === targetUserName ? { ...u, selectedTeamId: teamId } : u
+    ));
+    
+    // If the user being assigned is the current user, update their active selection state
+    if (targetUserName === userName) {
+        setUserTeamId(teamId);
+        setRole('TEAM', teamId);
+    }
+  };
+
   return (
     <AuctionContext.Provider value={{
       roomCode,
@@ -354,7 +444,13 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setGameMode,
       setAuctionMode,
       userName,
-      setUserName
+      setUserName,
+      rules,
+      setupCustomAuction,
+      joinRoom,
+      connectedUsers,
+      selectTeam,
+      assignTeamToUser
     }}>
       {children}
     </AuctionContext.Provider>

@@ -1,11 +1,12 @@
-import React, { useRef, useEffect, useState } from 'react';
+
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { useAuction } from '../context/AuctionContext';
 import PlayerCard from '../components/PlayerCard';
 import Timer from '../components/Timer';
 import AuctionControl from '../components/AuctionControl';
 import { formatCurrency } from '../constants';
 import { AuctionSet, Player } from '../types';
-import { History, TrendingUp, Crown, Users, LayoutList, Search, User, ArrowRight, List, Wifi, Bot, Layers, X, Gavel } from 'lucide-react';
+import { History, TrendingUp, Crown, Users, LayoutList, Search, User, ArrowRight, List, Wifi, Bot, Layers, X, Gavel, Sparkles, Activity } from 'lucide-react';
 
 const AuctionRoom: React.FC = () => {
   const { 
@@ -23,7 +24,7 @@ const AuctionRoom: React.FC = () => {
     userName
   } = useAuction();
 
-  const [sidebarTab, setSidebarTab] = useState<'STANDINGS' | 'FEED' | 'PLAYERS'>('STANDINGS');
+  const [sidebarTab, setSidebarTab] = useState<'STANDINGS' | 'PLAYERS' | 'FEED'>('STANDINGS');
   const [searchQuery, setSearchQuery] = useState('');
   const [showOverlay, setShowOverlay] = useState(false);
   const [confetti, setConfetti] = useState<number[]>([]);
@@ -78,6 +79,16 @@ const AuctionRoom: React.FC = () => {
   // Filter players for the Sets Modal - use modalSearchQuery
   const setPlayers = players.filter(p => p.set === activeSet && p.name.toLowerCase().includes(modalSearchQuery.toLowerCase()));
   const uniqueSets = Object.values(AuctionSet);
+
+  // Combined Feed Events
+  const feedEvents = useMemo(() => {
+    const bids = history.map(b => ({ type: 'BID' as const, data: b, timestamp: b.timestamp, id: b.id }));
+    const results = players
+      .filter(p => (p.status === 'SOLD' || p.status === 'UNSOLD') && p.timestamp)
+      .map(p => ({ type: 'RESULT' as const, data: p, timestamp: p.timestamp!, id: p.id + '_res' }));
+    
+    return [...bids, ...results].sort((a, b) => b.timestamp - a.timestamp);
+  }, [history, players]);
 
   const getTeamTheme = (colorClass: string) => {
     if(!colorClass) return { from: 'from-slate-900', via: 'via-slate-800', to: 'to-black', border: 'border-slate-500', text: 'text-slate-200' };
@@ -360,12 +371,12 @@ const AuctionRoom: React.FC = () => {
                     {/* LEFT: Player Image & Stamp */}
                     <div className="relative h-[40vh] md:h-[60vh] w-full md:w-1/2 flex justify-center items-end animate-[slide-up_0.8s_ease-out_0.2s_both]">
                          {/* Glow behind player */}
-                         <div className={`absolute bottom-0 w-[300px] h-[300px] md:w-[500px] md:h-[500px] rounded-full blur-[100px] opacity-60 ${isSold ? 'bg-white/20' : 'bg-red-900/20'}`}></div>
+                         <div className={`absolute bottom-0 w-[300px] h-[300px] md:w-[500px] md:h-[500px] rounded-full blur-[100px] opacity-60 ${isSold ? 'bg-green-500/20' : 'bg-red-900/20'}`}></div>
                          
                          {/* STAMP - Centered on image */}
                          <div className="absolute top-1/2 left-1/2 z-50 pointer-events-none w-full flex justify-center">
                             <h1 
-                                className={`text-[6rem] md:text-[9rem] font-black font-teko uppercase leading-none tracking-tighter border-8 md:border-[12px] px-8 md:px-12 transform -rotate-12 shadow-2xl backdrop-blur-sm mix-blend-overlay ${isSold ? 'border-white text-white' : 'border-red-600 text-red-600'}`}
+                                className={`text-[6rem] md:text-[9rem] font-black font-teko uppercase leading-none tracking-tighter border-8 md:border-[12px] px-8 md:px-12 transform -rotate-12 shadow-2xl backdrop-blur-sm ${isSold ? 'border-green-500 text-green-500' : 'border-red-600 text-red-600'}`}
                                 style={{ 
                                     animation: 'stamp-bounce 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.5s forwards', 
                                     opacity: 0,
@@ -398,7 +409,7 @@ const AuctionRoom: React.FC = () => {
                                      {winningTeam.logoUrl ? (
                                          <img src={winningTeam.logoUrl} alt={winningTeam.shortName} className="w-full h-full object-contain" />
                                      ) : (
-                                         <div className={`w-full h-full rounded-full ${winningTeam.color.split(' ')[0].replace('text-', 'bg-')} flex items-center justify-center text-3xl font-bold text-white`}>{winningTeam.shortName[0]}</div>
+                                         <div className={`w-full h-full rounded-full ${winningTeam.color.split(' ')[0].replace('text-', 'bg-')}`}></div>
                                      )}
                                  </div>
                                  <h2 className="text-5xl md:text-8xl font-teko font-bold text-white uppercase drop-shadow-md">{winningTeam.name}</h2>
@@ -547,11 +558,11 @@ const AuctionRoom: React.FC = () => {
                 >
                     <Users size={16} /> Players
                 </button>
-                <button 
+                 <button 
                     onClick={() => setSidebarTab('FEED')}
                     className={`flex-1 p-4 text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-colors ${sidebarTab === 'FEED' ? 'text-ipl-gold bg-white/5 border-b-2 border-ipl-gold' : 'text-slate-500 hover:text-slate-300'}`}
                 >
-                    <History size={16} /> Feed
+                    <Activity size={16} /> Feed
                 </button>
             </div>
 
@@ -646,51 +657,80 @@ const AuctionRoom: React.FC = () => {
                         </div>
                     </div>
                 )}
-
-                {/* FEED TAB */}
+                
+                 {/* FEED TAB */}
                 {sidebarTab === 'FEED' && (
-                    <div className="p-4 space-y-2 pb-8">
-                        {history.length === 0 && (
-                            <div className="flex flex-col items-center justify-center h-40 text-slate-600 space-y-2">
-                                <History size={24} />
-                                <span className="text-sm italic">Waiting for bids...</span>
+                    <div className="p-4 space-y-3 pb-8">
+                        <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 sticky top-0 bg-slate-900/95 py-2 z-10">Live Feed</h3>
+                        {feedEvents.length === 0 ? (
+                            <div className="text-center text-slate-500 text-xs py-8 italic flex flex-col items-center">
+                                <Activity size={24} className="mb-2 opacity-50" />
+                                Waiting for activity...
                             </div>
-                        )}
-                        {history.map((bid, idx) => {
-                            const team = teams.find(t => t.id === bid.teamId);
-                            const player = players.find(p => p.id === bid.playerId);
-                            // Identify if this is a winning bid for a SOLD player
-                            const isWinningBid = player?.status === 'SOLD' && player.soldTo === team?.id && player.soldPrice === bid.amount;
-                            const isTop = idx === 0;
-
-                            return (
-                                <div key={bid.id} className={`p-3 rounded-lg border flex items-center justify-between transition-all ${isTop ? 'bg-slate-800 border-ipl-gold/50 shadow-lg scale-105 my-2' : 'bg-slate-800/40 border-slate-700/50 opacity-80'}`}>
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-inner bg-white/5 overflow-hidden p-1`}>
-                                            {team?.logoUrl ? <img src={team.logoUrl} className="w-full h-full object-contain" /> : team?.shortName}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="text-[10px] text-slate-400 uppercase flex flex-col leading-tight">
-                                                <span className={`font-bold ${isWinningBid ? 'text-green-400' : 'text-slate-200'} truncate`}>{team?.name}</span>
-                                                {isWinningBid ? (
-                                                    <span className="text-[9px] text-green-500/80 font-bold tracking-wider">WON {player?.name}</span>
-                                                ) : (
-                                                    <span className="text-slate-500 text-[9px] truncate">bid for {player?.name || 'Player'}</span>
-                                                )}
+                        ) : (
+                            feedEvents.map((event) => {
+                                if (event.type === 'BID') {
+                                    const bid = event.data as any; // Cast to avoid complex TS in render
+                                    const team = teams.find(t => t.id === bid.teamId);
+                                    const player = players.find(p => p.id === bid.playerId);
+                                    
+                                    return (
+                                        <div key={event.id} className="flex items-center gap-3 p-3 rounded-lg border bg-slate-800/40 border-slate-700/50">
+                                            <div className="w-8 h-8 rounded bg-slate-900 flex items-center justify-center border border-slate-700 overflow-hidden flex-none">
+                                                {team?.logoUrl ? <img src={team.logoUrl} className="w-full h-full object-contain" /> : <span className="font-bold text-xs">{team?.shortName}</span>}
                                             </div>
-                                            <div className={`font-mono font-bold ${isTop ? 'text-white' : 'text-slate-300'}`}>{formatCurrency(bid.amount)}</div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-baseline justify-between">
+                                                    <span className="text-xs font-bold text-white truncate mr-1">{team?.shortName}</span>
+                                                    <span className="text-[10px] text-slate-500 font-mono">{new Date(bid.timestamp).toLocaleTimeString([], {minute:'2-digit', second:'2-digit'})}</span>
+                                                </div>
+                                                <div className="text-[10px] text-slate-400 truncate">
+                                                    Bid for <span className="text-slate-300">{player?.name}</span>
+                                                </div>
+                                            </div>
+                                            <div className="text-sm font-mono font-bold text-ipl-gold">
+                                                {formatCurrency(bid.amount).replace('₹', '')}
+                                            </div>
                                         </div>
-                                    </div>
-                                    {isWinningBid ? <Crown size={16} className="text-ipl-gold" /> : (isTop && <TrendingUp size={16} className="text-green-500" />)}
-                                </div>
-                            )
-                        })}
+                                    );
+                                } else {
+                                    const player = event.data as Player;
+                                    const isSold = player.status === 'SOLD';
+                                    const team = teams.find(t => t.id === player.soldTo);
+
+                                    return (
+                                        <div key={event.id} className={`flex items-center gap-3 p-3 rounded-lg border ${isSold ? 'bg-green-900/20 border-green-500/30' : 'bg-red-900/20 border-red-500/30'}`}>
+                                            <div className={`w-8 h-8 rounded flex items-center justify-center border flex-none ${isSold ? 'bg-green-900/50 border-green-500' : 'bg-red-900/50 border-red-500'}`}>
+                                                <Gavel size={14} className="text-white" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-baseline justify-between">
+                                                    <span className={`text-xs font-bold truncate mr-1 ${isSold ? 'text-green-400' : 'text-red-400'}`}>
+                                                        {isSold ? 'PLAYER SOLD' : 'UNSOLD'}
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-500 font-mono">{new Date(player.timestamp || 0).toLocaleTimeString([], {minute:'2-digit', second:'2-digit'})}</span>
+                                                </div>
+                                                <div className="text-[10px] text-slate-300 truncate">
+                                                    {player.name}
+                                                    {isSold && team && <span className="text-slate-500"> to {team.shortName}</span>}
+                                                </div>
+                                            </div>
+                                            {isSold && (
+                                                <div className="text-sm font-mono font-bold text-white">
+                                                    {formatCurrency(player.soldPrice || 0).replace('₹', '')}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )
+                                }
+                            })
+                        )}
                     </div>
                 )}
             </div>
 
             {/* Current Team Leader (Sticky Bottom of Sidebar) */}
-            {currentBid && (sidebarTab === 'FEED' || sidebarTab === 'STANDINGS') && (
+            {currentBid && (
                 <div className="flex-none p-5 bg-gradient-to-t from-slate-900 to-slate-800 border-t border-ipl-gold/20">
                     <h4 className="text-[10px] uppercase text-slate-500 mb-3 tracking-widest flex items-center gap-1">
                         <Crown size={12} className="text-ipl-gold" /> Current Leader
