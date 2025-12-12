@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IPL Mega Auction 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              ipl: {
+                dark: '#050b14',
+                card: '#1e293b',
+                blue: '#11245A',
+                blueLight: '#3464eb',
+                gold: '#D1AB3E',
+                goldLight: '#F4D06F',
+                red: '#E11D48',
+                accent: '#38bdf8'
+              }
+            },
+            fontFamily: {
+              teko: ['Teko', 'sans-serif'],
+              roboto: ['Roboto', 'sans-serif'],
+            },
+            backgroundImage: {
+              'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+              'gold-gradient': 'linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #FBF5B7, #AA771C)',
+              'blue-gradient': 'linear-gradient(to right, #0f2027, #203a43, #2c5364)',
+            },
+            animation: {
+              'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'shine': 'shine 2s linear infinite',
+              'scale-in': 'scaleIn 0.3s ease-out forwards',
+            },
+            keyframes: {
+              shine: {
+                '0%': { backgroundPosition: '200% center' },
+                '100%': { backgroundPosition: '-200% center' },
+              },
+              scaleIn: {
+                '0%': { transform: 'scale(0.8)', opacity: '0' },
+                '100%': { transform: 'scale(1)', opacity: '1' },
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Teko:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700;900&display=swap');
+      
+      body {
+        font-family: 'Roboto', sans-serif;
+        background-color: #050b14;
+        color: white;
+        overflow-x: hidden;
+      }
+      
+      h1, h2, h3, .heading-font {
+        font-family: 'Teko', sans-serif;
+      }
+
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0f172a; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #334155; 
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #D1AB3E; 
+      }
+
+      .glass-panel {
+        background: rgba(15, 23, 42, 0.7);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .text-glow {
+        text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+      }
+      
+      .gold-text-gradient {
+        background: linear-gradient(to bottom, #FCF6BA, #BF953F);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.1/",
+    "react/": "https://esm.sh/react@^19.2.1/",
+    "react": "https://esm.sh/react@^19.2.1",
+    "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.560.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
