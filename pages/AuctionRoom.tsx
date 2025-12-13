@@ -21,7 +21,8 @@ const AuctionRoom: React.FC = () => {
     isHost,
     gameMode,
     userTeamId,
-    userName
+    userName,
+    rules
   } = useAuction();
 
   const [sidebarTab, setSidebarTab] = useState<'STANDINGS' | 'PLAYERS' | 'FEED'>('STANDINGS');
@@ -587,8 +588,8 @@ const AuctionRoom: React.FC = () => {
                                     <span className="font-mono font-bold text-green-400 text-lg tracking-tight">{formatCurrency(team.purseRemaining)}</span>
                                  </div>
                                  <div className="flex justify-between text-[11px] uppercase font-bold text-slate-500 tracking-wider">
-                                    <span>Squad: <span className="text-slate-300">{team.squadCount}/25</span></span>
-                                    <span>OS: <span className="text-slate-300">{team.overseasCount}/8</span></span>
+                                    <span>Squad: <span className="text-slate-300">{team.squadCount}/{rules.maxSquadSize}</span></span>
+                                    <span>OS: <span className="text-slate-300">{team.overseasCount}/{rules.maxOverseas}</span></span>
                                  </div>
                               </div>
                            )

@@ -384,7 +384,7 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // Sort the custom player list to ensure set-by-set flow
     setPlayers(sortPlayersBySet(newPlayers));
     setRules(newRules);
-    setGameMode('SINGLE'); // Default to single player for custom sandbox
+    setGameMode('MULTI'); // Changed from SINGLE to MULTI to enable online features
     setIsHost(true);
   };
 

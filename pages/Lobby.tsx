@@ -71,8 +71,11 @@ const Lobby: React.FC = () => {
 
   // Custom Room State
   const [customRoomName, setCustomRoomName] = useState('My Auction Room');
+  const [customHostName, setCustomHostName] = useState(''); // New state for Custom Host Name
+  const [hostNameError, setHostNameError] = useState(false); // Error state for host name
   const [customBudget, setCustomBudget] = useState<number>(90); 
   const [customMaxOverseas, setCustomMaxOverseas] = useState<number>(8);
+  const [customSquadSize, setCustomSquadSize] = useState<number>(25); // New state for Max Squad Size
   const [customMinBid, setCustomMinBid] = useState<number>(0);
   const [customTeams, setCustomTeams] = useState(INITIAL_TEAMS.map(t => ({ ...t })));
   
@@ -125,6 +128,9 @@ const Lobby: React.FC = () => {
           setCustomTeams(INITIAL_TEAMS.map(t => ({...t})));
           setCustomPlayers(null); 
           setCustomListFileName('');
+          setCustomHostName(''); // Reset host name
+          setHostNameError(false);
+          setCustomSquadSize(25); // Reset squad size
           setLobbyStep('CUSTOM_ROOM_SETUP');
       }
   };
@@ -162,9 +168,11 @@ const Lobby: React.FC = () => {
   };
   
   const toggleTeamActive = (teamId: string) => {
-      setCustomTeams(prev => prev.map(t => {
-          return t; 
-      }).filter(t => t.id !== teamId));
+      setCustomTeams(prev => prev.filter(t => t.id !== teamId));
+  };
+  
+  const addTeamBack = (team: any) => {
+      setCustomTeams(prev => [...prev, { ...team }]);
   };
   
   const restoreTeams = () => {
@@ -319,72 +327,45 @@ const Lobby: React.FC = () => {
                   }
 
                   const mappedPlayers: Player[] = jsonData.map((row: any, index: number) => {
-                      // ---------------------------------------------------------
-                      // RAW FORMAT DETECTION & CLEANING LOGIC
-                      // ---------------------------------------------------------
-                      // Check if it's the raw format (e.g. has First_Name)
+                      // ... (Same mapping logic as before) ...
                       const isRawFormat = row['First_Name'] !== undefined;
-                      
                       let name, country, role, basePrice, setStr, isUncapped, imgUrl, matches, runs, wickets, avg, sr, econ;
 
                       if (isRawFormat) {
-                          // 1. Build Name
                           name = `${row['First_Name']} ${row['Surname']}`;
-                          
-                          // 2. Map Country
                           country = row['Country'] || 'India';
-                          
-                          // 3. Map Role (Specialism)
                           role = mapRole(row['Specialism']);
-                          
-                          // 4. Map Base Price
-                          // Check for Reserve_Price (often in Lakhs e.g. "50") or Base Price
                           let rawPrice = row['Reserve_Price'] || row['Base Price'] || row['Reserve Price'];
                           if (rawPrice) {
                               const p = parseFloat(rawPrice.toString().replace(/,/g, '').replace(/₹/g, ''));
-                              basePrice = p < 10000 ? p * 100000 : p; // Assume Lakhs if small number
+                              basePrice = p < 10000 ? p * 100000 : p; 
                           } else {
-                              // Default Logic requested
                               const isOverseasCheck = country.trim().toLowerCase() !== 'india';
                               const setCheck = (row['2025_Set'] || '').toString().toLowerCase();
-                              
                               if (isOverseasCheck) {
                                   basePrice = 5000000;
                               } else {
-                                  if (setCheck.includes('uncapped') || (row['Age'] && parseInt(row['Age']) < 23)) { // Fallback heuristics
+                                  if (setCheck.includes('uncapped') || (row['Age'] && parseInt(row['Age']) < 23)) { 
                                       basePrice = 2000000;
                                   } else {
                                       basePrice = 5000000;
                                   }
                               }
                           }
-
-                          // 5. Map Set
                           setStr = row['2025_Set'] || row['Set_no'] || '';
-
-                          // 6. Map Uncapped
-                          // Logic: if price <= 20L or Set contains Uncapped
                           isUncapped = basePrice <= 2000000 || setStr.toString().toLowerCase().includes('uncapped');
-                          
-                          // 7. Stats (If available in raw)
                           matches = parseInt(row['Matches'] || '0');
                           runs = parseInt(row['Runs'] || '0');
                           wickets = parseInt(row['Wickets'] || '0');
                           imgUrl = row['Image'] || '';
-
                       } else {
-                          // ---------------------------------------------------------
-                          // STANDARD TEMPLATE MAPPING
-                          // ---------------------------------------------------------
                           name = row['Name'] || row['name'] || `Player ${index + 1}`;
                           country = row['Country'] || row['country'] || 'India';
                           role = mapRole(row['Role'] || row['role'] || 'Batsman');
                           basePrice = parseInt(row['Base Price'] || row['basePrice'] || '2000000');
                           setStr = row['Set'] || row['set'] || 'Uncapped';
-                          
                           const isUncappedRaw = row['Is Uncapped'] || row['isUncapped'] || 'No';
                           isUncapped = isUncappedRaw.toString().toLowerCase().includes('yes') || isUncappedRaw.toString().toLowerCase() === 'true';
-                          
                           matches = parseInt(row['Matches'] || row['matches'] || '0');
                           runs = parseInt(row['Runs'] || row['runs'] || '0');
                           wickets = parseInt(row['Wickets'] || row['wickets'] || '0');
@@ -404,14 +385,7 @@ const Lobby: React.FC = () => {
                           basePrice: isNaN(basePrice) ? 2000000 : basePrice,
                           set: mapSet(setStr, basePrice || 2000000),
                           status: 'UPCOMING',
-                          stats: {
-                              matches: matches || 0,
-                              runs: runs || 0,
-                              wickets: wickets || 0,
-                              average: avg || 0,
-                              strikeRate: sr || 0,
-                              economy: econ || 0
-                          },
+                          stats: { matches: matches || 0, runs: runs || 0, wickets: wickets || 0, average: avg || 0, strikeRate: sr || 0, economy: econ || 0 },
                           imgUrl: imgUrl
                       };
                   });
@@ -454,10 +428,7 @@ const Lobby: React.FC = () => {
   };
 
   const handleDeletePlayer = (id: string, e?: React.MouseEvent) => {
-      // Prevent bubble up (though unlikely needed here, good practice)
       if (e) e.stopPropagation();
-      
-      // Removed window.confirm for immediate deletion as requested
       setCustomPlayers(prev => prev ? prev.filter(p => p.id !== id) : []);
   };
 
@@ -468,7 +439,6 @@ const Lobby: React.FC = () => {
   };
 
   const handleEditClick = (player: Player) => {
-      // Create a copy to edit
       setEditingPlayer({ ...player });
       setIsAddingNew(false);
   };
@@ -480,13 +450,10 @@ const Lobby: React.FC = () => {
 
   const handleSavePlayer = () => {
       if (!editingPlayer) return;
-      
-      // Basic validation
       if (!editingPlayer.name) {
           alert("Player name is required");
           return;
       }
-
       if (isAddingNew) {
           setCustomPlayers(prev => [...(prev || []), editingPlayer]);
       } else {
@@ -496,35 +463,62 @@ const Lobby: React.FC = () => {
       setIsAddingNew(false);
   };
 
+  // --- CREATE CUSTOM ROOM LOGIC ---
   const handleCreateCustomRoom = () => {
-      if (!customRoomName) { alert("Please name your room"); return; }
+      // 1. Validation
+      let valid = true;
+      if (!customHostName.trim()) { 
+          setHostNameError(true);
+          valid = false;
+      } else {
+          setHostNameError(false);
+      }
       
-      const teamsWithBudget = customTeams.map(t => ({
-          ...t,
-          purseRemaining: customBudget * 10000000
-      }));
-
-      // Setup context
-      // Use customPlayers if available, else copy mock players
-      const finalPlayers = customPlayers && customPlayers.length > 0 
-        ? customPlayers 
-        : JSON.parse(JSON.stringify(MOCK_PLAYERS));
-
-      setupCustomAuction(teamsWithBudget, finalPlayers, {
-          maxOverseas: customMaxOverseas,
-          maxSquadSize: 25, 
-          minBidIncrement: customMinBid
-      });
-
-      setUserName(contextUserName || 'Host'); // Ensure username is set
-      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-      setContextRoomCode(code);
+      if (!customRoomName) { 
+          alert("Please name your room"); 
+          valid = false; 
+      }
       
-      // Save code for mock join validation
-      localStorage.setItem('ipl_auction_sim_code', code);
-      
-      // Go to Multiplayer Waiting Room instead of Roles
-      setLobbyStep('MULTIPLAYER_WAITING_ROOM');
+      if (!valid) return;
+
+      try {
+          // 2. Prepare Teams
+          const teamsWithBudget = customTeams.map(t => ({
+              ...t,
+              purseRemaining: Number(customBudget) * 10000000
+          }));
+
+          // 3. Prepare Players
+          const finalPlayers = customPlayers && customPlayers.length > 0 
+            ? customPlayers 
+            : JSON.parse(JSON.stringify(MOCK_PLAYERS));
+
+          // 4. Setup Context
+          setupCustomAuction(teamsWithBudget, finalPlayers, {
+              maxOverseas: customMaxOverseas,
+              maxSquadSize: customSquadSize, 
+              minBidIncrement: customMinBid
+          });
+
+          // 5. Generate Room Code & Join
+          const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+          const hostName = customHostName.trim();
+          
+          setContextRoomCode(code);
+          setContextUserName(hostName); 
+          setUserName(hostName); 
+          
+          joinRoom(hostName, code);
+          localStorage.setItem('ipl_auction_sim_code', code);
+          
+          // 6. Navigate directly to Auction (skip waiting room)
+          setRole('ADMIN'); // Set host as admin initially
+          startAuction(); 
+          
+      } catch (error) {
+          console.error("Failed to create room:", error);
+          alert("An error occurred while creating the room. Please check the console or try again.");
+      }
   };
   
   const handleRefresh = () => {
@@ -617,6 +611,9 @@ const Lobby: React.FC = () => {
       p.country.toLowerCase().includes(managerSearch.toLowerCase())
   ) || [];
 
+  // Available Teams Calculation
+  const availableTeams = INITIAL_TEAMS.filter(t => !customTeams.some(ct => ct.id === t.id));
+
   return (
     <div className="min-h-screen bg-ipl-dark flex flex-col items-center justify-center p-4 relative overflow-hidden font-roboto">
       {/* Dynamic Background */}
@@ -678,7 +675,7 @@ const Lobby: React.FC = () => {
           </div>
       )}
 
-      {/* Player Manager Modal */}
+      {/* Player Manager Modal (Unchanged) */}
       {showPlayerManager && (
           <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in-up">
               <div className="bg-slate-900 border border-slate-700 w-full max-w-5xl h-[85vh] rounded-2xl overflow-hidden shadow-2xl flex flex-col">
@@ -726,13 +723,14 @@ const Lobby: React.FC = () => {
 
                   {/* Modal Body */}
                   <div className="flex-1 overflow-hidden p-6 relative">
+                      {/* ... (Previous Manager Content) ... */}
                       {editingPlayer ? (
-                          /* EDIT/ADD FORM */
                           <div className="h-full overflow-y-auto custom-scrollbar animate-fade-in-up px-2">
+                              {/* ... Edit Form ... */}
                               <h4 className="text-xl font-teko font-bold text-ipl-gold mb-6 uppercase border-b border-slate-700 pb-2">
                                   {isAddingNew ? 'Add New Player' : 'Edit Player Details'}
                               </h4>
-                              
+                              {/* ... Form Fields ... */}
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                   <div className="space-y-4">
                                       <div className="flex flex-col gap-1">
@@ -755,7 +753,6 @@ const Lobby: React.FC = () => {
                                               {Object.values(AuctionSet).map(set => <option key={set} value={set}>{set}</option>)}
                                           </select>
                                       </div>
-                                       {/* ADDED: Is Uncapped Toggle */}
                                       <div className="flex items-center gap-2 pt-2">
                                           <input type="checkbox" checked={editingPlayer.isUncapped} onChange={e => setEditingPlayer({...editingPlayer, isUncapped: e.target.checked})} id="isUncapped" className="w-5 h-5 accent-purple-500 cursor-pointer" />
                                           <label htmlFor="isUncapped" className="text-xs uppercase font-bold text-slate-500 cursor-pointer select-none">Is Uncapped Player?</label>
@@ -804,7 +801,6 @@ const Lobby: React.FC = () => {
                               </div>
                           </div>
                       ) : (
-                          /* LIST VIEW */
                           <div className="flex flex-col h-full">
                               <div className="flex gap-4 mb-4">
                                   <div className="relative flex-1">
@@ -834,7 +830,6 @@ const Lobby: React.FC = () => {
                                           {filteredManagerList.map(p => (
                                               <tr key={p.id} className="hover:bg-slate-800/50 transition-colors">
                                                   <td className="p-3 flex items-center gap-3">
-                                                      {/* ADDED: Image Thumbnail */}
                                                       <div className="w-8 h-8 rounded bg-slate-800 flex-shrink-0 overflow-hidden border border-slate-700">
                                                           {p.imgUrl ? <img src={p.imgUrl} className="w-full h-full object-cover" /> : <User size={16} className="text-slate-500 m-auto mt-2" />}
                                                       </div>
@@ -848,20 +843,8 @@ const Lobby: React.FC = () => {
                                                   <td className="p-3 text-xs text-slate-400 uppercase">{p.set.split('Set')[0]}</td>
                                                   <td className="p-3 text-right">
                                                       <div className="flex justify-end gap-2">
-                                                          <button 
-                                                            onClick={() => handleEditClick(p)} 
-                                                            className="p-2 bg-slate-800 border border-slate-700 rounded hover:bg-blue-600 hover:text-white hover:border-blue-500 transition-all text-slate-400"
-                                                            title="Edit"
-                                                          >
-                                                              <Edit size={14} />
-                                                          </button>
-                                                          <button 
-                                                            onClick={(e) => handleDeletePlayer(p.id, e)} 
-                                                            className="p-2 bg-slate-800 border border-slate-700 rounded hover:bg-red-600 hover:text-white hover:border-red-500 transition-all text-slate-400"
-                                                            title="Delete"
-                                                          >
-                                                              <Trash2 size={14} />
-                                                          </button>
+                                                          <button onClick={() => handleEditClick(p)} className="p-2 bg-slate-800 border border-slate-700 rounded hover:bg-blue-600 hover:text-white hover:border-blue-500 transition-all text-slate-400" title="Edit"><Edit size={14} /></button>
+                                                          <button onClick={(e) => handleDeletePlayer(p.id, e)} className="p-2 bg-slate-800 border border-slate-700 rounded hover:bg-red-600 hover:text-white hover:border-red-500 transition-all text-slate-400" title="Delete"><Trash2 size={14} /></button>
                                                       </div>
                                                   </td>
                                               </tr>
@@ -883,7 +866,7 @@ const Lobby: React.FC = () => {
 
       <div className="z-10 text-center max-w-7xl w-full">
         
-        {/* Dynamic Header */}
+        {/* Dynamic Header (Same) */}
         {lobbyStep !== 'ROLES' && lobbyStep !== 'MULTIPLAYER_SETUP' && lobbyStep !== 'MULTIPLAYER_WAITING_ROOM' && lobbyStep !== 'CUSTOM_ROOM_SETUP' && (
              <div className="mb-12 animate-fade-in-down">
                 <h1 className="text-7xl md:text-9xl font-bold font-teko text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-400 drop-shadow-2xl tracking-tight leading-none">
@@ -901,92 +884,50 @@ const Lobby: React.FC = () => {
             </div>
         )}
 
-        {/* STEP 1: MODE SELECTION */}
+        {/* STEP 1: MODE SELECTION (Unchanged) */}
         {lobbyStep === 'MODES' && (
              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full px-4 animate-scale-in">
-                
-                {/* BOX 1: 2025 MEGA */}
-                <div 
-                    onClick={() => handleModeSelect('MEGA')}
-                    className="group relative cursor-pointer h-96 rounded-3xl overflow-hidden border border-ipl-gold/30 hover:border-ipl-gold transition-all duration-500 hover:shadow-[0_0_50px_rgba(209,171,62,0.3)] hover:-translate-y-2 bg-slate-900"
-                >
-                    {/* Image / Gradient Background */}
+                {/* ... Boxes ... */}
+                {/* BOX 1 */}
+                <div onClick={() => handleModeSelect('MEGA')} className="group relative cursor-pointer h-96 rounded-3xl overflow-hidden border border-ipl-gold/30 hover:border-ipl-gold transition-all duration-500 hover:shadow-[0_0_50px_rgba(209,171,62,0.3)] hover:-translate-y-2 bg-slate-900">
                     <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1631194758628-71ec7c35137e?q=80&w=2532&auto=format&fit=crop')] bg-cover bg-center opacity-40 group-hover:scale-110 transition-transform duration-700"></div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
-                    
                     <div className="absolute inset-0 flex flex-col items-center justify-center p-6 z-10">
-                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-700 flex items-center justify-center mb-6 shadow-lg group-hover:rotate-12 transition-transform">
-                            <Crown size={40} className="text-white" />
-                        </div>
+                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-700 flex items-center justify-center mb-6 shadow-lg group-hover:rotate-12 transition-transform"><Crown size={40} className="text-white" /></div>
                         <h2 className="text-5xl font-teko font-bold text-white mb-2 group-hover:text-ipl-gold transition-colors">2025 - MEGA</h2>
                         <p className="text-slate-300 text-sm max-w-[80%] leading-relaxed">The Grand Reset. All teams rebuild from scratch. Massive purse, Marquee players, and high stakes.</p>
-                        <div className="mt-8 px-6 py-2 border border-ipl-gold/50 rounded-full text-ipl-gold uppercase tracking-widest text-xs font-bold group-hover:bg-ipl-gold group-hover:text-black transition-all">
-                            Enter Mega Auction
-                        </div>
+                        <div className="mt-8 px-6 py-2 border border-ipl-gold/50 rounded-full text-ipl-gold uppercase tracking-widest text-xs font-bold group-hover:bg-ipl-gold group-hover:text-black transition-all">Enter Mega Auction</div>
                     </div>
                 </div>
-
-                {/* BOX 2: 2026 MINI */}
-                <div 
-                    onClick={() => handleModeSelect('MINI')}
-                    className="group relative cursor-pointer h-96 rounded-3xl overflow-hidden border border-blue-500/30 hover:border-blue-400 transition-all duration-500 hover:shadow-[0_0_50px_rgba(59,130,246,0.3)] hover:-translate-y-2 bg-slate-900"
-                >
+                {/* BOX 2 */}
+                <div onClick={() => handleModeSelect('MINI')} className="group relative cursor-pointer h-96 rounded-3xl overflow-hidden border border-blue-500/30 hover:border-blue-400 transition-all duration-500 hover:shadow-[0_0_50px_rgba(59,130,246,0.3)] hover:-translate-y-2 bg-slate-900">
                     <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1589829085413-56de8ae18c73?q=80&w=2612&auto=format&fit=crop')] bg-cover bg-center opacity-40 group-hover:scale-110 transition-transform duration-700"></div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
-                    
                     <div className="absolute inset-0 flex flex-col items-center justify-center p-6 z-10">
-                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-indigo-700 flex items-center justify-center mb-6 shadow-lg group-hover:rotate-12 transition-transform">
-                            <Gavel size={40} className="text-white" />
-                        </div>
+                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-indigo-700 flex items-center justify-center mb-6 shadow-lg group-hover:rotate-12 transition-transform"><Gavel size={40} className="text-white" /></div>
                         <h2 className="text-5xl font-teko font-bold text-white mb-2 group-hover:text-blue-400 transition-colors">2026 - MINI</h2>
                         <p className="text-slate-300 text-sm max-w-[80%] leading-relaxed">Strategic reinforcements. Fill the gaps in your squad with a limited purse and targeted buys.</p>
-                        <div className="mt-8 px-6 py-2 border border-blue-500/50 rounded-full text-blue-400 uppercase tracking-widest text-xs font-bold group-hover:bg-blue-500 group-hover:text-white transition-all">
-                            Enter Mini Auction
-                        </div>
+                        <div className="mt-8 px-6 py-2 border border-blue-500/50 rounded-full text-blue-400 uppercase tracking-widest text-xs font-bold group-hover:bg-blue-500 group-hover:text-white transition-all">Enter Mini Auction</div>
                     </div>
                 </div>
-
-                {/* BOX 3: CUSTOM BIT (Modified) */}
-                <div 
-                    className="group relative h-96 rounded-3xl overflow-hidden border border-purple-500/30 bg-slate-900 transition-all duration-500 hover:shadow-[0_0_50px_rgba(168,85,247,0.3)] hover:-translate-y-2"
-                >
+                {/* BOX 3 */}
+                <div className="group relative h-96 rounded-3xl overflow-hidden border border-purple-500/30 bg-slate-900 transition-all duration-500 hover:shadow-[0_0_50px_rgba(168,85,247,0.3)] hover:-translate-y-2">
                     <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1000&auto=format&fit=crop')] bg-cover bg-center opacity-40 group-hover:scale-110 transition-transform duration-700"></div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
-                    
                     <div className="absolute inset-0 flex flex-col items-center justify-center p-6 z-10">
-                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-pink-700 flex items-center justify-center mb-6 shadow-lg group-hover:rotate-12 transition-transform">
-                            <Settings size={40} className="text-white" />
-                        </div>
+                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-pink-700 flex items-center justify-center mb-6 shadow-lg group-hover:rotate-12 transition-transform"><Settings size={40} className="text-white" /></div>
                         <h2 className="text-5xl font-teko font-bold text-white mb-2 text-purple-400">CUSTOM BIT</h2>
                         <p className="text-slate-300 text-sm max-w-[80%] leading-relaxed mb-6">Create your own rules or join a private league.</p>
-                        
                         <div className="flex gap-4">
-                            <button 
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleModeSelect('CUSTOM');
-                                }}
-                                className="px-6 py-2 border border-purple-500 bg-purple-600/20 hover:bg-purple-600 text-white rounded-full uppercase tracking-widest text-xs font-bold transition-all shadow-lg hover:shadow-purple-500/20"
-                            >
-                                Create Room
-                            </button>
-                            <button 
-                                 onClick={(e) => {
-                                    e.stopPropagation();
-                                    openJoinCustomModal();
-                                }}
-                                className="px-6 py-2 border border-white/20 bg-white/5 hover:bg-white/20 text-white rounded-full uppercase tracking-widest text-xs font-bold transition-all"
-                            >
-                                Join Room
-                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); handleModeSelect('CUSTOM'); }} className="px-6 py-2 border border-purple-500 bg-purple-600/20 hover:bg-purple-600 text-white rounded-full uppercase tracking-widest text-xs font-bold transition-all shadow-lg hover:shadow-purple-500/20">Create Room</button>
+                            <button onClick={(e) => { e.stopPropagation(); openJoinCustomModal(); }} className="px-6 py-2 border border-white/20 bg-white/5 hover:bg-white/20 text-white rounded-full uppercase tracking-widest text-xs font-bold transition-all">Join Room</button>
                         </div>
                     </div>
                 </div>
-
              </div>
         )}
 
-        {/* STEP 1.5: CUSTOM ROOM SETUP (Replaces Single/Multi for Custom) */}
+        {/* STEP 1.5: CUSTOM ROOM SETUP */}
         {lobbyStep === 'CUSTOM_ROOM_SETUP' && (
             <div className="w-full max-w-5xl px-4 animate-scale-in">
                 <h2 className="text-5xl font-teko font-bold text-white mb-6 text-left">Create Custom Room</h2>
@@ -1006,6 +947,23 @@ const Lobby: React.FC = () => {
                                 className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:border-purple-500 outline-none"
                             />
                         </div>
+                         {/* NEW: Host Name Input with Error State */}
+                        <div className="flex flex-col gap-2 text-left">
+                            <label className={`text-xs font-bold uppercase tracking-wide ${hostNameError ? 'text-red-500 animate-pulse' : 'text-slate-400'}`}>
+                                Your Name (Host) *
+                            </label>
+                            <input 
+                                type="text" 
+                                value={customHostName} 
+                                onChange={(e) => {
+                                    setCustomHostName(e.target.value);
+                                    if(e.target.value.trim()) setHostNameError(false);
+                                }}
+                                className={`bg-slate-900 border ${hostNameError ? 'border-red-500 ring-1 ring-red-500/50' : 'border-slate-700'} rounded-lg p-3 text-white focus:border-purple-500 outline-none transition-all placeholder:text-slate-600`}
+                                placeholder={hostNameError ? "Required!" : "Enter your name"}
+                            />
+                        </div>
+
                         <div className="flex flex-col gap-2 text-left">
                             <label className="text-slate-400 text-xs font-bold uppercase tracking-wide">Team Budget (Crores)</label>
                             <input 
@@ -1025,6 +983,19 @@ const Lobby: React.FC = () => {
                                 className="w-full accent-purple-500 h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer mt-3"
                             />
                         </div>
+                        
+                         {/* NEW INPUT: TOTAL PLAYERS / SQUAD SIZE */}
+                        <div className="flex flex-col gap-2 text-left">
+                            <label className="text-slate-400 text-xs font-bold uppercase tracking-wide">Total Players (Squad Size): <span className="text-white">{customSquadSize}</span></label>
+                            <input 
+                                type="range" 
+                                min="15" max="35" 
+                                value={customSquadSize} 
+                                onChange={(e) => setCustomSquadSize(parseInt(e.target.value))}
+                                className="w-full accent-blue-500 h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer mt-3"
+                            />
+                        </div>
+
                         <div className="flex flex-col gap-2 text-left">
                             <label className="text-slate-400 text-xs font-bold uppercase tracking-wide">Min Bid Increment</label>
                             <select 
@@ -1045,16 +1016,16 @@ const Lobby: React.FC = () => {
                 <div className="glass-panel p-6 rounded-2xl border border-slate-700/50 mb-6">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-blue-400 font-bold uppercase tracking-wider flex items-center gap-2">
-                            <Users size={18} /> Participating Teams
+                            <Users size={18} /> Participating Teams ({customTeams.length}/{INITIAL_TEAMS.length})
                         </h3>
                         {customTeams.length < INITIAL_TEAMS.length && (
                              <button onClick={restoreTeams} className="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded text-white transition-colors">
-                                Reset Teams
+                                Reset All
                              </button>
                         )}
                     </div>
                     
-                    <div className="grid grid-cols-1 gap-3 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+                    <div className="grid grid-cols-1 gap-3 max-h-64 overflow-y-auto custom-scrollbar pr-2 mb-4">
                         {customTeams.map(team => (
                             <div key={team.id} className="flex items-center justify-between bg-slate-900/50 border border-slate-700 p-3 rounded-lg hover:bg-slate-800/80 transition-colors">
                                 <div className="flex items-center gap-3">
@@ -1079,9 +1050,31 @@ const Lobby: React.FC = () => {
                             </div>
                         ))}
                     </div>
-                    <button className="mt-4 w-full py-2 border border-dashed border-slate-600 text-slate-500 rounded-lg hover:text-white hover:border-slate-500 transition-colors text-sm uppercase tracking-wide flex items-center justify-center gap-2 cursor-not-allowed opacity-50">
-                        <Plus size={16} /> Add Team (Limit Reached)
-                    </button>
+
+                    {availableTeams.length > 0 ? (
+                        <div className="border-t border-slate-700 pt-4">
+                            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Add Team</div>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                                {availableTeams.map(team => (
+                                    <button 
+                                        key={team.id} 
+                                        onClick={() => addTeamBack(team)}
+                                        className="flex items-center gap-2 bg-slate-800/50 hover:bg-slate-700 border border-slate-700 hover:border-green-500 p-2 rounded-lg transition-all group text-left"
+                                    >
+                                        <div className="w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center p-0.5 border border-slate-600">
+                                            <TeamLogo team={team} className="w-full h-full object-contain grayscale group-hover:grayscale-0 transition-all" />
+                                        </div>
+                                        <span className="text-slate-400 group-hover:text-white text-xs font-bold truncate flex-1">{team.shortName}</span>
+                                        <Plus size={14} className="text-slate-600 group-hover:text-green-500" />
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    ) : (
+                        <button className="w-full py-2 border border-dashed border-slate-600 text-slate-500 rounded-lg text-sm uppercase tracking-wide flex items-center justify-center gap-2 cursor-not-allowed opacity-50">
+                            <Check size={16} /> Limit Reached (Max {INITIAL_TEAMS.length})
+                        </button>
+                    )}
                 </div>
 
                 {/* Player Pool Section */}
@@ -1153,168 +1146,79 @@ const Lobby: React.FC = () => {
             </div>
         )}
 
+        {/* ... Rest of steps (MULTIPLAYER_WAITING_ROOM, PLAY_MODE, MULTIPLAYER_SETUP, ROLES) ... */}
+        {/* Only keeping surrounding structure to show placement, actual content remains as previously provided/updated */}
+        
         {/* STEP 2: PLAY MODE SELECTION (SINGLE / MULTI) */}
         {lobbyStep === 'PLAY_MODE' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl px-4 animate-fade-in-up">
-                
-                {/* SINGLE PLAYER */}
-                <div 
-                    onClick={() => handlePlayModeSelect('SINGLE')}
-                    className="group relative cursor-pointer h-80 rounded-3xl overflow-hidden border border-emerald-500/30 hover:border-emerald-400 transition-all duration-500 hover:shadow-[0_0_50px_rgba(16,185,129,0.3)] hover:-translate-y-2 bg-slate-900"
-                >
+                {/* ... (Same as before) */}
+                <div onClick={() => handlePlayModeSelect('SINGLE')} className="group relative cursor-pointer h-80 rounded-3xl overflow-hidden border border-emerald-500/30 hover:border-emerald-400 transition-all duration-500 hover:shadow-[0_0_50px_rgba(16,185,129,0.3)] hover:-translate-y-2 bg-slate-900">
                      <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/40 to-black z-0"></div>
                      <div className="absolute inset-0 flex flex-col items-center justify-between p-8 z-10 text-center">
                         <div className="flex flex-col items-center">
-                            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform">
-                                <Cpu size={40} className="text-white" />
-                            </div>
+                            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform"><Cpu size={40} className="text-white" /></div>
                             <h2 className="text-5xl font-teko font-bold text-white group-hover:text-emerald-400 transition-colors leading-none">Single Player</h2>
                         </div>
                         <p className="text-slate-300 text-sm max-w-[90%] leading-relaxed">Solo Offline Mode. Compete against smart AI bots that bid based on real player stats and logic.</p>
-                        <div className="px-8 py-2 border border-emerald-500/50 rounded-full text-emerald-400 uppercase tracking-widest text-xs font-bold group-hover:bg-emerald-500 group-hover:text-white transition-all">
-                            Play vs AI
-                        </div>
+                        <div className="px-8 py-2 border border-emerald-500/50 rounded-full text-emerald-400 uppercase tracking-widest text-xs font-bold group-hover:bg-emerald-500 group-hover:text-white transition-all">Play vs AI</div>
                      </div>
                 </div>
-
-                {/* MULTIPLAYER */}
-                <div 
-                    onClick={() => handlePlayModeSelect('MULTI')}
-                    className="group relative cursor-pointer h-80 rounded-3xl overflow-hidden border border-indigo-500/30 hover:border-indigo-400 transition-all duration-500 hover:shadow-[0_0_50px_rgba(99,102,241,0.3)] hover:-translate-y-2 bg-slate-900"
-                >
+                <div onClick={() => handlePlayModeSelect('MULTI')} className="group relative cursor-pointer h-80 rounded-3xl overflow-hidden border border-indigo-500/30 hover:border-indigo-400 transition-all duration-500 hover:shadow-[0_0_50px_rgba(99,102,241,0.3)] hover:-translate-y-2 bg-slate-900">
                      <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 to-black z-0"></div>
                      <div className="absolute inset-0 flex flex-col items-center justify-between p-8 z-10 text-center">
                         <div className="flex flex-col items-center">
-                            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-700 flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform">
-                                <Globe size={40} className="text-white" />
-                            </div>
+                            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-700 flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform"><Globe size={40} className="text-white" /></div>
                             <h2 className="text-5xl font-teko font-bold text-white group-hover:text-indigo-400 transition-colors leading-none">Multiplayer</h2>
                         </div>
                         <p className="text-slate-300 text-sm max-w-[90%] leading-relaxed">Online PvP. Create a room, invite friends, and bid in real-time synchronisation.</p>
-                        <div className="px-8 py-2 border border-indigo-500/50 rounded-full text-indigo-400 uppercase tracking-widest text-xs font-bold group-hover:bg-indigo-500 group-hover:text-white transition-all">
-                            Connect Online
-                        </div>
+                        <div className="px-8 py-2 border border-indigo-500/50 rounded-full text-indigo-400 uppercase tracking-widest text-xs font-bold group-hover:bg-indigo-500 group-hover:text-white transition-all">Connect Online</div>
                      </div>
                 </div>
-
             </div>
         )}
 
         {/* STEP 2.5: MULTIPLAYER SETUP SCREEN */}
         {lobbyStep === 'MULTIPLAYER_SETUP' && (
             <div className="w-full max-w-6xl px-4 animate-scale-in flex flex-col items-center">
-                <h2 className="text-6xl font-teko font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400 mb-8 drop-shadow-lg uppercase">
-                    Multiplayer Auction
-                </h2>
-                
+                <h2 className="text-6xl font-teko font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400 mb-8 drop-shadow-lg uppercase">Multiplayer Auction</h2>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 w-full">
-                    
-                    {/* LEFT COL: CREATE & JOIN Forms */}
+                    {/* ... (Same as before) */}
                     <div className="lg:col-span-2 glass-panel rounded-2xl p-8 border border-slate-700/50 flex flex-col gap-8 shadow-2xl relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 rounded-full blur-[80px]"></div>
-
-                        {/* CREATE ROOM SECTION */}
                         <div className="relative z-10">
-                            <div className="flex items-center gap-2 mb-4">
-                                <Plus className="text-blue-400" size={24} />
-                                <h3 className="text-3xl font-teko font-bold text-white uppercase tracking-wide">Create a Room</h3>
-                            </div>
-                            
+                            <div className="flex items-center gap-2 mb-4"><Plus className="text-blue-400" size={24} /><h3 className="text-3xl font-teko font-bold text-white uppercase tracking-wide">Create a Room</h3></div>
                             <div className="flex flex-col gap-4">
-                                <input 
-                                    type="text" 
-                                    placeholder="Enter your name" 
-                                    className="w-full bg-slate-950/80 border border-slate-700 rounded-lg p-4 text-white placeholder-slate-500 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
-                                    value={createName}
-                                    onChange={(e) => setCreateName(e.target.value)}
-                                />
-                                
+                                <input type="text" placeholder="Enter your name" className="w-full bg-slate-950/80 border border-slate-700 rounded-lg p-4 text-white placeholder-slate-500 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none" value={createName} onChange={(e) => setCreateName(e.target.value)} />
                                 <label className="flex items-center gap-3 cursor-pointer group w-fit">
-                                    <div 
-                                        className={`w-6 h-6 rounded border flex items-center justify-center transition-colors ${isPublic ? 'bg-blue-500 border-blue-500' : 'bg-transparent border-slate-600'}`}
-                                        onClick={() => setIsPublic(!isPublic)}
-                                    >
+                                    <div className={`w-6 h-6 rounded border flex items-center justify-center transition-colors ${isPublic ? 'bg-blue-500 border-blue-500' : 'bg-transparent border-slate-600'}`} onClick={() => setIsPublic(!isPublic)}>
                                         {isPublic && <CheckCircle2 size={16} className="text-white" />}
                                     </div>
                                     <span className="text-slate-400 group-hover:text-slate-200 text-sm uppercase tracking-wider select-none">Make this room Public</span>
                                 </label>
-
-                                <button 
-                                    onClick={handleCreateRoom}
-                                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-4 rounded-lg uppercase tracking-widest shadow-lg hover:shadow-blue-500/20 transition-all transform active:scale-[0.99] flex items-center justify-center gap-2"
-                                >
-                                    Create Room
-                                </button>
+                                <button onClick={handleCreateRoom} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-4 rounded-lg uppercase tracking-widest shadow-lg hover:shadow-blue-500/20 transition-all transform active:scale-[0.99] flex items-center justify-center gap-2">Create Room</button>
                             </div>
                         </div>
-
-                        {/* OR DIVIDER */}
-                        <div className="relative flex items-center py-2">
-                            <div className="flex-grow border-t border-slate-700"></div>
-                            <span className="flex-shrink-0 mx-4 text-slate-500 font-teko text-xl">OR</span>
-                            <div className="flex-grow border-t border-slate-700"></div>
-                        </div>
-
-                        {/* JOIN ROOM SECTION */}
+                        <div className="relative flex items-center py-2"><div className="flex-grow border-t border-slate-700"></div><span className="flex-shrink-0 mx-4 text-slate-500 font-teko text-xl">OR</span><div className="flex-grow border-t border-slate-700"></div></div>
                         <div className="relative z-10">
-                             <div className="flex items-center gap-2 mb-4">
-                                <LogIn className="text-purple-400" size={24} />
-                                <h3 className="text-3xl font-teko font-bold text-white uppercase tracking-wide">Join a Room</h3>
-                            </div>
-
+                             <div className="flex items-center gap-2 mb-4"><LogIn className="text-purple-400" size={24} /><h3 className="text-3xl font-teko font-bold text-white uppercase tracking-wide">Join a Room</h3></div>
                             <div className="flex flex-col gap-4">
-                                <input 
-                                    type="text" 
-                                    placeholder="Enter your name (Required)" 
-                                    className="w-full bg-slate-950/80 border border-slate-700 rounded-lg p-4 text-white placeholder-slate-500 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none"
-                                    value={joinName}
-                                    onChange={(e) => setJoinName(e.target.value)}
-                                />
+                                <input type="text" placeholder="Enter your name (Required)" className="w-full bg-slate-950/80 border border-slate-700 rounded-lg p-4 text-white placeholder-slate-500 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none" value={joinName} onChange={(e) => setJoinName(e.target.value)} />
                                 <div className="flex gap-4">
-                                    <input 
-                                        type="text" 
-                                        placeholder="ROOM CODE" 
-                                        className="flex-1 bg-slate-950/80 border border-slate-700 rounded-lg p-4 text-white placeholder-slate-500 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none font-mono uppercase tracking-widest"
-                                        value={roomCodeInput}
-                                        onChange={(e) => setRoomCodeInput(e.target.value)}
-                                    />
-                                    <button 
-                                        onClick={handleJoinRoom}
-                                        className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-8 rounded-lg uppercase tracking-widest shadow-lg hover:shadow-purple-500/20 transition-all"
-                                    >
-                                        Join
-                                    </button>
+                                    <input type="text" placeholder="ROOM CODE" className="flex-1 bg-slate-950/80 border border-slate-700 rounded-lg p-4 text-white placeholder-slate-500 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none font-mono uppercase tracking-widest" value={roomCodeInput} onChange={(e) => setRoomCodeInput(e.target.value)} />
+                                    <button onClick={handleJoinRoom} className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-8 rounded-lg uppercase tracking-widest shadow-lg hover:shadow-purple-500/20 transition-all">Join</button>
                                 </div>
                             </div>
                         </div>
-
                     </div>
-
-                    {/* RIGHT COL: PUBLIC LIST */}
                     <div className="glass-panel rounded-2xl border border-slate-700/50 flex flex-col h-full shadow-2xl relative overflow-hidden min-h-[400px]">
-                        <div className="p-6 border-b border-slate-700/50 bg-slate-900/50 flex justify-between items-center">
-                            <h3 className="text-2xl font-teko font-bold text-green-400 uppercase tracking-wide flex items-center gap-2">
-                                <Users size={20} /> Public Auctions
-                            </h3>
-                            <button 
-                                onClick={handleRefresh}
-                                className={`text-slate-400 hover:text-white transition-colors bg-slate-800 p-2 rounded ${isRefreshing ? 'animate-spin' : ''}`}
-                            >
-                                <RefreshCw size={16} />
-                            </button>
-                        </div>
-
+                        <div className="p-6 border-b border-slate-700/50 bg-slate-900/50 flex justify-between items-center"><h3 className="text-2xl font-teko font-bold text-green-400 uppercase tracking-wide flex items-center gap-2"><Users size={20} /> Public Auctions</h3><button onClick={handleRefresh} className={`text-slate-400 hover:text-white transition-colors bg-slate-800 p-2 rounded ${isRefreshing ? 'animate-spin' : ''}`}><RefreshCw size={16} /></button></div>
                         <div className="flex-1 p-6 flex flex-col items-center justify-center text-slate-500 relative">
                              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/diagmonds-light.png')] opacity-5"></div>
-                             
-                             <div className="bg-slate-800/50 p-6 rounded-full mb-4 border border-slate-700">
-                                <Globe size={48} className="opacity-50" />
-                             </div>
-                             <p className="text-lg mb-2">No public rooms available.</p>
-                             <p className="text-sm text-slate-600">Why not create one?</p>
+                             <div className="bg-slate-800/50 p-6 rounded-full mb-4 border border-slate-700"><Globe size={48} className="opacity-50" /></div>
+                             <p className="text-lg mb-2">No public rooms available.</p><p className="text-sm text-slate-600">Why not create one?</p>
                         </div>
                     </div>
-
                 </div>
             </div>
         )}
@@ -1322,210 +1226,95 @@ const Lobby: React.FC = () => {
         {/* STEP 2.75: MULTIPLAYER WAITING ROOM (New Requested View) */}
         {lobbyStep === 'MULTIPLAYER_WAITING_ROOM' && (
              <div className="w-full max-w-7xl px-4 animate-fade-in-up flex flex-col lg:flex-row gap-8 items-start h-[80vh]">
-                 
-                 {/* LEFT: Room Details & Player List */}
+                 {/* ... (Same as before) */}
                  <div className="w-full lg:w-1/4 flex flex-col gap-4 h-full">
-                     {/* Room Code Card */}
                      <div className="glass-panel rounded-2xl p-6 border border-slate-700/50 relative overflow-hidden">
                          <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 to-transparent"></div>
                          <h3 className="text-slate-400 uppercase tracking-widest text-xs font-bold mb-2">Room Code</h3>
                          <div className="flex items-center justify-between bg-slate-900/80 p-3 rounded-lg border border-slate-700">
                              <span className="text-3xl font-mono font-bold text-blue-400 tracking-widest">{contextRoomCode || 'WAITING'}</span>
-                             <button 
-                                onClick={handleCopyCode}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-200 text-xs font-bold uppercase tracking-widest ${
-                                    copied 
-                                    ? 'bg-green-500/10 border-green-500/50 text-green-400' 
-                                    : 'bg-slate-800 border-slate-600 text-slate-400 hover:text-white hover:border-slate-500 hover:bg-slate-700'
-                                }`}
-                                title="Copy Code"
-                            >
-                                 {copied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
-                                 <span>{copied ? 'Copied' : 'Copy'}</span>
+                             <button onClick={handleCopyCode} className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-200 text-xs font-bold uppercase tracking-widest ${copied ? 'bg-green-500/10 border-green-500/50 text-green-400' : 'bg-slate-800 border-slate-600 text-slate-400 hover:text-white hover:border-slate-500 hover:bg-slate-700'}`} title="Copy Code">
+                                 {copied ? <CheckCircle2 size={16} /> : <Copy size={16} />}<span>{copied ? 'Copied' : 'Copy'}</span>
                              </button>
                          </div>
                          <p className="text-slate-500 text-[10px] mt-2">Share this code with your friends to join.</p>
                      </div>
-
-                     {/* Player List */}
                      <div className="glass-panel rounded-2xl p-6 border border-slate-700/50 flex-1 flex flex-col">
-                         <h3 className="text-slate-300 uppercase tracking-widest text-sm font-bold mb-4 flex items-center gap-2">
-                             <Users size={16} /> Players ({connectedUsers.length})
-                         </h3>
-                         
+                         <h3 className="text-slate-300 uppercase tracking-widest text-sm font-bold mb-4 flex items-center gap-2"><Users size={16} /> Players ({connectedUsers.length})</h3>
                          <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                              {connectedUsers.map((user, index) => {
                                  const isMe = user.name === contextUserName;
-                                 const isUserHost = index === 0; // Assuming creator is first in mock list
-                                 
+                                 const isUserHost = index === 0; 
                                  return (
                                      <div key={index} className="flex flex-col gap-2 bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
                                          <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-sm">
-                                                {user.name.charAt(0).toUpperCase()}
-                                            </div>
+                                            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-sm">{user.name.charAt(0).toUpperCase()}</div>
                                             <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="text-white font-bold text-sm truncate max-w-[100px]">{user.name}</div>
-                                                    {isMe && <span className="text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded uppercase">You</span>}
-                                                </div>
+                                                <div className="flex items-center gap-2"><div className="text-white font-bold text-sm truncate max-w-[100px]">{user.name}</div>{isMe && <span className="text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded uppercase">You</span>}</div>
                                                 <div className="text-[10px] text-yellow-500 font-bold uppercase tracking-wider">{isUserHost ? 'Host' : 'Guest'}</div>
                                             </div>
                                          </div>
-                                         
-                                         {/* Team Assignment Logic */}
                                          {isHost ? (
-                                             <select 
-                                                className="w-full bg-slate-900 border border-slate-700 text-xs text-white p-2 rounded outline-none focus:border-blue-500"
-                                                value={user.selectedTeamId || ''}
-                                                onChange={(e) => assignTeamToUser(user.name, e.target.value)}
-                                             >
+                                             <select className="w-full bg-slate-900 border border-slate-700 text-xs text-white p-2 rounded outline-none focus:border-blue-500" value={user.selectedTeamId || ''} onChange={(e) => assignTeamToUser(user.name, e.target.value)}>
                                                  <option value="">Assign Team...</option>
-                                                 {teams.map(t => (
-                                                     <option key={t.id} value={t.id}>{t.shortName}</option>
-                                                 ))}
+                                                 {teams.map(t => (<option key={t.id} value={t.id}>{t.shortName}</option>))}
                                              </select>
                                          ) : (
-                                             user.selectedTeamId && (
-                                                 <div className="flex items-center gap-2 bg-slate-900/50 p-1.5 rounded border border-slate-800">
-                                                     <div className="w-4 h-4 rounded-full bg-slate-700 overflow-hidden">
-                                                         {/* Mini Logo */}
-                                                         <TeamLogo team={teams.find(t => t.id === user.selectedTeamId)} className="w-full h-full object-cover" />
-                                                     </div>
-                                                     <span className="text-xs text-slate-300 font-bold">{teams.find(t => t.id === user.selectedTeamId)?.shortName}</span>
-                                                 </div>
-                                             )
+                                             user.selectedTeamId && (<div className="flex items-center gap-2 bg-slate-900/50 p-1.5 rounded border border-slate-800"><div className="w-4 h-4 rounded-full bg-slate-700 overflow-hidden"><TeamLogo team={teams.find(t => t.id === user.selectedTeamId)} className="w-full h-full object-cover" /></div><span className="text-xs text-slate-300 font-bold">{teams.find(t => t.id === user.selectedTeamId)?.shortName}</span></div>)
                                          )}
                                      </div>
                                  );
                              })}
                          </div>
-
                          <div className="mt-4 pt-4 border-t border-slate-700">
                              {isHost ? (
-                                 <button 
-                                    onClick={handleStartAuction}
-                                    className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-xl uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
-                                 >
-                                     <Play size={20} fill="currentColor" /> Start Auction
-                                 </button>
-                             ) : (
-                                 <div className="text-center text-slate-500 text-xs uppercase tracking-widest animate-pulse">
-                                     Waiting for Host to start...
-                                 </div>
-                             )}
+                                 <button onClick={handleStartAuction} className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-xl uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"><Play size={20} fill="currentColor" /> Start Auction</button>
+                             ) : (<div className="text-center text-slate-500 text-xs uppercase tracking-widest animate-pulse">Waiting for Host to start...</div>)}
                          </div>
                      </div>
                  </div>
-
-                 {/* RIGHT: Team Selection Grid */}
                  <div className="w-full lg:w-3/4 h-full flex flex-col">
                      <h2 className="text-4xl font-teko font-bold text-white mb-6">Select Your Team</h2>
-                     
                      <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-12">
                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                             {teams.map(team => {
-                                // Calculate Taken Status
                                 const takenBy = connectedUsers.find(u => u.selectedTeamId === team.id);
-                                const isTaken = !!takenBy && takenBy.name !== contextUserName; // Taken by someone else
+                                const isTaken = !!takenBy && takenBy.name !== contextUserName;
                                 const isSelectedByMe = userTeamId === team.id;
-                                
                                 const styles = getTeamStyles(team.id);
-                                
                                 return (
-                                    <div 
-                                        key={team.id}
-                                        onClick={() => !isTaken && handleSelectTeam(team.id)}
-                                        className={`relative rounded-xl border p-4 flex items-center gap-4 transition-all duration-200 
-                                            ${isTaken ? 'opacity-75 cursor-not-allowed border-red-900/50 bg-red-900/10' : 'cursor-pointer'}
-                                            ${isSelectedByMe ? `bg-slate-800 border-${styles.text.split('-')[1]}-500 shadow-lg shadow-${styles.text.split('-')[1]}-500/20` : (!isTaken && 'bg-slate-900/50 border-slate-700 hover:border-slate-500 hover:bg-slate-800')}
-                                        `}
-                                    >
-                                        {/* TAKEN BADGE */}
-                                        {isTaken && (
-                                            <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg z-10 animate-in fade-in zoom-in uppercase tracking-wider">
-                                                TAKEN
-                                            </div>
-                                        )}
-
-                                        <div className="w-16 h-16 rounded-full bg-slate-950 flex items-center justify-center p-2 border border-slate-700 shrink-0">
-                                            <TeamLogo team={team} className={`w-full h-full object-contain ${isTaken ? 'grayscale' : ''}`} />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex justify-between items-center mb-1">
-                                                <h3 className={`text-xl font-teko font-bold tracking-wide truncate pr-2 ${isTaken ? 'text-slate-500' : 'text-white'}`}>{team.shortName}</h3>
-                                                {isSelectedByMe && <CheckCircle2 size={20} className="text-green-500 shrink-0" />}
-                                            </div>
-                                            <div className="text-xs text-slate-400 mb-1">Purse: <span className="text-white font-mono">{formatCurrency(team.purseRemaining)}</span></div>
-                                            <div className="text-[10px] text-slate-500 uppercase tracking-widest">
-                                                {isTaken ? `Taken by ${takenBy?.name}` : 'Click to Select'}
-                                            </div>
-                                        </div>
+                                    <div key={team.id} onClick={() => !isTaken && handleSelectTeam(team.id)} className={`relative rounded-xl border p-4 flex items-center gap-4 transition-all duration-200 ${isTaken ? 'opacity-75 cursor-not-allowed border-red-900/50 bg-red-900/10' : 'cursor-pointer'} ${isSelectedByMe ? `bg-slate-800 border-${styles.text.split('-')[1]}-500 shadow-lg shadow-${styles.text.split('-')[1]}-500/20` : (!isTaken && 'bg-slate-900/50 border-slate-700 hover:border-slate-500 hover:bg-slate-800')}`}>
+                                        {isTaken && (<div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg z-10 animate-in fade-in zoom-in uppercase tracking-wider">TAKEN</div>)}
+                                        <div className="w-16 h-16 rounded-full bg-slate-950 flex items-center justify-center p-2 border border-slate-700 shrink-0"><TeamLogo team={team} className={`w-full h-full object-contain ${isTaken ? 'grayscale' : ''}`} /></div>
+                                        <div className="flex-1 min-w-0"><div className="flex justify-between items-center mb-1"><h3 className={`text-xl font-teko font-bold tracking-wide truncate pr-2 ${isTaken ? 'text-slate-500' : 'text-white'}`}>{team.shortName}</h3>{isSelectedByMe && <CheckCircle2 size={20} className="text-green-500 shrink-0" />}</div><div className="text-xs text-slate-400 mb-1">Purse: <span className="text-white font-mono">{formatCurrency(team.purseRemaining)}</span></div><div className="text-[10px] text-slate-500 uppercase tracking-widest">{isTaken ? `Taken by ${takenBy?.name}` : 'Click to Select'}</div></div>
                                     </div>
                                 );
                             })}
                          </div>
                      </div>
                  </div>
-
              </div>
         )}
 
         {/* STEP 3: OLD TEAM SELECTION (Only for Single Player now) */}
         {lobbyStep === 'ROLES' && (
             <div className="w-full max-w-7xl px-4 animate-fade-in-up flex flex-col items-center">
-                
-                <div className="text-center mb-10">
-                    <h2 className="text-5xl md:text-6xl font-teko font-bold text-white uppercase tracking-wide mb-2 text-glow">
-                        Select Your Team
-                    </h2>
-                    <p className="text-slate-400 text-lg tracking-widest uppercase">
-                        Choose a franchise to manage in the {selectedMode?.subtitle || 'Auction'}
-                    </p>
-                </div>
-
+                {/* ... (Same as before) */}
+                <div className="text-center mb-10"><h2 className="text-5xl md:text-6xl font-teko font-bold text-white uppercase tracking-wide mb-2 text-glow">Select Your Team</h2><p className="text-slate-400 text-lg tracking-widest uppercase">Choose a franchise to manage in the {selectedMode?.subtitle || 'Auction'}</p></div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-16 w-full">
                     {teams.map(team => {
                          const styles = getTeamStyles(team.id);
-                         
                          return (
-                            <button 
-                                key={team.id}
-                                onClick={() => {
-                                    setRole('TEAM', team.id);
-                                    startAuction();
-                                }}
-                                className={`group relative bg-slate-900/80 backdrop-blur-md border border-slate-700 ${styles.border} ${styles.shadow} ${styles.ring} hover:ring-1 rounded-3xl overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:scale-[1.02] flex flex-col h-[340px] w-full text-left shadow-2xl`}
-                            >
-                                {/* Selection Indicator (Hover) */}
-                                <div className={`absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity ${styles.text}`}>
-                                    <CheckCircle2 size={24} />
-                                </div>
-
-                                {/* Top Section: Logo & Name */}
+                            <button key={team.id} onClick={() => { setRole('TEAM', team.id); startAuction(); }} className={`group relative bg-slate-900/80 backdrop-blur-md border border-slate-700 ${styles.border} ${styles.shadow} ${styles.ring} hover:ring-1 rounded-3xl overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:scale-[1.02] flex flex-col h-[340px] w-full text-left shadow-2xl`}>
+                                <div className={`absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity ${styles.text}`}><CheckCircle2 size={24} /></div>
                                 <div className="flex-1 p-6 flex flex-col items-center justify-center relative">
-                                     {/* Background Glow */}
                                      <div className={`absolute inset-0 bg-gradient-to-b from-slate-800 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
                                      <div className={`absolute top-0 left-0 w-full h-32 opacity-10 bg-gradient-to-b ${styles.bg === 'bg-white' ? 'from-slate-500' : 'from-' + styles.text.split('-')[1] + '-500'} to-transparent blur-xl`}></div>
-
-                                     {/* Logo Container */}
-                                     <div className={`w-28 h-28 rounded-full bg-white/5 border-2 border-white/10 group-hover:border-current ${styles.text} flex items-center justify-center mb-6 shadow-2xl group-hover:scale-110 transition-transform duration-300 relative z-10 overflow-hidden p-2`}>
-                                         <TeamLogo team={team} className="w-full h-full object-contain drop-shadow-lg" />
-                                     </div>
-
+                                     <div className={`w-28 h-28 rounded-full bg-white/5 border-2 border-white/10 group-hover:border-current ${styles.text} flex items-center justify-center mb-6 shadow-2xl group-hover:scale-110 transition-transform duration-300 relative z-10 overflow-hidden p-2`}><TeamLogo team={team} className="w-full h-full object-contain drop-shadow-lg" /></div>
                                      <h3 className="text-5xl font-teko font-bold text-white leading-none mb-2 relative z-10 tracking-wide">{team.shortName}</h3>
-                                     <p className="text-[10px] text-slate-400 uppercase tracking-[0.2em] font-bold text-center relative z-10 leading-relaxed min-h-[30px] flex items-center">
-                                         {team.name}
-                                     </p>
+                                     <p className="text-[10px] text-slate-400 uppercase tracking-[0.2em] font-bold text-center relative z-10 leading-relaxed min-h-[30px] flex items-center">{team.name}</p>
                                 </div>
-
-                                {/* Bottom Section: Purse */}
-                                <div className="bg-slate-950/80 border-t border-white/5 p-5 flex justify-between items-center w-full group-hover:bg-slate-950 transition-colors relative z-20">
-                                    <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Purse</span>
-                                    <span className={`text-2xl font-mono font-bold text-white group-hover:${styles.text.split(' ')[0]} transition-colors`}>
-                                        {formatCurrency(team.purseRemaining)}
-                                    </span>
-                                </div>
+                                <div className="bg-slate-950/80 border-t border-white/5 p-5 flex justify-between items-center w-full group-hover:bg-slate-950 transition-colors relative z-20"><span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Purse</span><span className={`text-2xl font-mono font-bold text-white group-hover:${styles.text.split(' ')[0]} transition-colors`}>{formatCurrency(team.purseRemaining)}</span></div>
                             </button>
                         );
                     })}
@@ -1533,14 +1322,9 @@ const Lobby: React.FC = () => {
             </div>
         )}
 
-        {/* Back Button */}
+        {/* Back Button (Unchanged) */}
         {lobbyStep !== 'MODES' && (
-            <button 
-                onClick={handleBack}
-                className="mt-12 text-slate-500 hover:text-white uppercase tracking-widest text-xs font-bold transition-colors fixed top-4 left-4 z-50 flex items-center gap-2 bg-black/20 backdrop-blur px-4 py-2 rounded-full border border-white/5 hover:border-white/20"
-            >
-                <ArrowRight className="rotate-180" size={14} /> Back
-            </button>
+            <button onClick={handleBack} className="mt-12 text-slate-500 hover:text-white uppercase tracking-widest text-xs font-bold transition-colors fixed top-4 left-4 z-50 flex items-center gap-2 bg-black/20 backdrop-blur px-4 py-2 rounded-full border border-white/5 hover:border-white/20"><ArrowRight className="rotate-180" size={14} /> Back</button>
         )}
 
       </div>

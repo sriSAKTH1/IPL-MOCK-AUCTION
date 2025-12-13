@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useAuction } from '../context/AuctionContext';
 import { formatCurrency, getNextBidAmount } from '../constants';
@@ -18,7 +19,8 @@ const AuctionControl: React.FC = () => {
     skipPlayer,
     isHost,
     isAutoPilot,
-    toggleAutoPilot
+    toggleAutoPilot,
+    rules
   } = useAuction();
 
   const currentPlayer = players.find(p => p.id === currentPlayerId);
@@ -82,7 +84,7 @@ const AuctionControl: React.FC = () => {
                     >
                         <Bot size={12} /> {isAutoPilot ? 'Auto ON' : 'Auto OFF'}
                     </button>
-                    <div className="text-[10px] text-slate-400 uppercase tracking-wider">Squad: {myTeam.squadCount}/25</div>
+                    <div className="text-[10px] text-slate-400 uppercase tracking-wider">Squad: {myTeam.squadCount}/{rules.maxSquadSize}</div>
                 </div>
             </div>
 

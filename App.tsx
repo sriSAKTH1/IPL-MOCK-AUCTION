@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { AuctionProvider, useAuction } from './context/AuctionContext';
 import Lobby from './pages/Lobby';
@@ -6,7 +7,7 @@ import { formatCurrency } from './constants';
 import { Trophy } from 'lucide-react';
 
 const AppContent: React.FC = () => {
-  const { phase, players, teams } = useAuction();
+  const { phase, players, teams, rules } = useAuction();
 
   if (phase === 'LOBBY') {
     return <Lobby />;
@@ -34,7 +35,7 @@ const AppContent: React.FC = () => {
                                  </div>
                                  <div className="text-right">
                                     <div className="text-[10px] text-slate-400 uppercase tracking-wider">Squad Size</div>
-                                    <div className="text-xl font-bold text-white">{team.squadCount}<span className="text-sm text-slate-500">/25</span></div>
+                                    <div className="text-xl font-bold text-white">{team.squadCount}<span className="text-sm text-slate-500">/{rules.maxSquadSize}</span></div>
                                  </div>
                              </div>
                         </div>
